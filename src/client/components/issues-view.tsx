@@ -23,18 +23,18 @@ export function IssuesView({ openIssue }: { openIssue: (id: number) => void }) {
     <div className="mx-auto max-w-4xl px-8 py-8">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Issues</h1>
+          <h1 className="text-2xl font-semibold">Mail</h1>
           <p className="text-sm text-muted-foreground">Draft, design, and send your newsletter.</p>
         </div>
         <Button onClick={() => setPicking(true)}>
-          <Plus size={16} /> New issue
+          <Plus size={16} /> New mail
         </Button>
       </header>
 
       {issues.length === 0 ? (
         <div className="rounded-2xl border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">No issues yet.</p>
-          <Button className="mt-3" onClick={() => setPicking(true)}>Create your first issue</Button>
+          <p className="text-muted-foreground">No mail yet.</p>
+          <Button className="mt-3" onClick={() => setPicking(true)}>Create your first newsletter</Button>
         </div>
       ) : (
         <ul className="divide-y overflow-hidden rounded-2xl border bg-background">

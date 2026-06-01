@@ -2,7 +2,7 @@ import { FileText, LayoutGrid, Users, Settings as Cog, Mail } from "lucide-react
 import type { View } from "../app";
 
 const ITEMS: { v: View; label: string; icon: typeof Mail }[] = [
-  { v: "issues", label: "Issues", icon: FileText },
+  { v: "issues", label: "Mail", icon: FileText },
   { v: "templates", label: "Templates", icon: LayoutGrid },
   { v: "audience", label: "Audience", icon: Users },
   { v: "settings", label: "Settings", icon: Cog },

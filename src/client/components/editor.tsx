@@ -189,7 +189,7 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
       <header className="flex items-center gap-3 border-b bg-background px-4 py-2.5">
         <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back"><ArrowLeft size={18} /></Button>
         <div className="flex items-center gap-2 text-sm">
-          <Badge variant="secondary">Issue</Badge>
+          <Badge variant="secondary">Mail</Badge>
           <span className="max-w-[260px] truncate font-medium">{issue.title || "Untitled"}</span>
           <span className="text-xs text-muted-foreground">{saved ? "Saved" : "Saving…"}</span>
           {sent ? <Badge className="bg-green-100 capitalize text-green-700">{issue.status}</Badge> : null}
