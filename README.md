@@ -12,6 +12,8 @@ Think of it as an open alternative to **Ghost**, **Substack**, or **beehiiv** â€
 the editor, the brand controls, and the sending pipeline, self-hostable and
 fully yours.
 
+<img width="1728" height="994" alt="Image" src="https://github.com/user-attachments/assets/38d948f7-dfae-446a-8351-94540f6fa1d6" />
+
 ## Features
 
 - **Generation-first editor** â€” write a prompt, get a structured draft
