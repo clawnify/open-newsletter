@@ -7,7 +7,7 @@ import { AudienceView } from "./components/audience-view";
 import { SettingsView } from "./components/settings-view";
 import { Editor } from "./components/editor";
 
-export type View = "issues" | "templates" | "audience" | "settings";
+export type View = "mail" | "templates" | "audience" | "settings";
 
 export function App() {
   return (
@@ -19,7 +19,7 @@ export function App() {
 
 function Shell() {
   const { loading, error, setError } = useStore();
-  const [view, setView] = useState<View>("issues");
+  const [view, setView] = useState<View>("mail");
   const [editing, setEditing] = useState<number | null>(null);
 
   if (loading) return <div className="flex h-full items-center justify-center text-muted-foreground">Loading…</div>;
@@ -30,7 +30,7 @@ function Shell() {
       <main className="min-w-0 flex-1 overflow-auto">
         {editing !== null ? (
           <Editor issueId={editing} onBack={() => setEditing(null)} />
-        ) : view === "issues" ? (
+        ) : view === "mail" ? (
           <IssuesView openIssue={setEditing} />
         ) : view === "templates" ? (
           <TemplatesView openIssue={setEditing} />
