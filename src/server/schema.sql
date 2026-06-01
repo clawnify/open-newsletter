@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS issues (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
--- Reusable look + content skeleton. Built-ins are seeded; users "Save as..".
+-- Reusable look + content skeleton. Built-ins are seeded, plus user "Save as.." presets.
 CREATE TABLE IF NOT EXISTS templates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   slug TEXT NOT NULL UNIQUE,
