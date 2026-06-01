@@ -1,16 +1,16 @@
-# Open Newsletter: The Open-Source Ghost & Substack Alternative
+# Open Newsletter — The Open-Source Mailchimp & beehiiv Alternative
 
 [![Deploy with Clawnify](https://app.clawnify.com/deploy-button.svg)](https://app.clawnify.com/deploy?repo=clawnify/open-newsletter)
 
 A **generation-first newsletter studio**. Describe an issue and let AI draft
 it, design it live with [DESIGN.md](https://github.com/google-labs-code/design.md)
 tokens, and send it to your audience through **Resend**. Built with
-**Preact + Tailwind CSS + Hono + D1**, deploys to Cloudflare Workers via
+**React + Tailwind CSS + Hono + D1**, deploys to Cloudflare Workers via
 [Clawnify](https://clawnify.com).
 
-Think of it as an open alternative to **Ghost**, **Substack**, or **beehiiv** —
-the editor, the brand controls, and the sending pipeline, self-hostable and
-fully yours.
+A self-hostable, open-source alternative to **Mailchimp**, **beehiiv**,
+**Substack**, and **ConvertKit** — the AI editor, the brand controls, and the
+sending pipeline, fully yours. No per-subscriber pricing, no lock-in.
 
 <img width="1728" height="994" alt="Image" src="https://github.com/user-attachments/assets/38d948f7-dfae-446a-8351-94540f6fa1d6" />
 
@@ -51,7 +51,7 @@ override the template's tokens; the design panel edits that override live and
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | Preact, TypeScript, Tailwind CSS v4, Vite |
+| **Frontend** | React, TypeScript, Tailwind CSS v4, Vite, shadcn/ui |
 | **Backend** | Hono (Cloudflare Worker) |
 | **Database** | D1 (issues, templates, settings) |
 | **Email** | Resend (Broadcasts + Contacts API) |
