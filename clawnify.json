@@ -1,0 +1,15 @@
+{
+  "$schema": "https://app.clawnify.com/schema/v1/clawnify.json",
+  "name": "Open Newsletter",
+  "description": "Generation-first newsletter studio. Draft issues with AI, design them with live DESIGN.md tokens, and send to your audience via Resend. An open alternative to Ghost, Substack, and beehiiv.",
+  "app": {
+    "framework": "react+hono",
+    "database": true,
+    "storage": true
+  },
+  "env": {
+    "required": ["RESEND_API_KEY"],
+    "oneOf": [["OPENROUTER_API_KEY"]],
+    "optional": ["NEWSLETTER_MODEL"]
+  }
+}
