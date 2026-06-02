@@ -31,6 +31,17 @@ function inline(text: string): string {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
+/**
+ * Inline-only Markdown → HTML (bold, italic, code, links) for the editor's
+ * editable fields, so `**bold**` shows formatted instead of literal. Newlines
+ * become <br> when multiline. Storage stays Markdown (the editable swaps to the
+ * raw source while focused), so the AI round-trip is unaffected.
+ */
+export function inlineMarkdownToHtml(md: string, multiline = false): string {
+  const html = inline(escapeHtml(md || ""));
+  return multiline ? html.replace(/\n/g, "<br>") : html;
+}
+
 export function markdownToHtml(md: string): string {
   const lines = (md || "").replace(/\r\n/g, "\n").split("\n");
   const out: string[] = [];

@@ -93,6 +93,12 @@ export interface TemplateSkeleton {
   blocks: Block[];
 }
 
+/** A reusable from-address. The email's domain must be verified in Resend. */
+export interface Sender {
+  name: string;
+  email: string;
+}
+
 /** Single-row app configuration. */
 export interface Settings {
   publication_name: string;
@@ -100,6 +106,8 @@ export interface Settings {
   logo: string;
   from_name: string;
   from_email: string;
+  /** Saved from-addresses the user can send/test from. */
+  senders: Sender[];
   default_audience_id: string | null;
   footer_text: string;
 }
@@ -108,6 +116,7 @@ export interface Settings {
 export interface StatusInfo {
   resend_connected: boolean;
   ai_available: boolean;
+  github_connected: boolean;
   audiences: ResendAudience[];
 }
 

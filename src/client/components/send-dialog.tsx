@@ -19,12 +19,24 @@ export function SendDialog({ mail, onClose, onSent }: { mail: Mail; onClose: () 
 
   const connected = status?.resend_connected;
   const audiences = status?.audiences || [];
-  const fromReady = !!settings?.from_email;
+
+  // From-addresses: the primary settings sender + any saved senders.
+  const senders: { label: string; value: string }[] = [];
+  if (settings?.from_email) {
+    const v = settings.from_name ? `${settings.from_name} <${settings.from_email}>` : settings.from_email;
+    senders.push({ label: v, value: v });
+  }
+  for (const s of settings?.senders || []) {
+    const v = `${s.name} <${s.email}>`;
+    if (!senders.some((x) => x.value === v)) senders.push({ label: v, value: v });
+  }
+  const [from, setFrom] = useState(senders[0]?.value || "");
+  const fromReady = senders.length > 0 && !!from;
 
   const sendTest = async () => {
     setErr(null); setMsg(null); setBusy("test");
     try {
-      await api("POST", `/api/mails/${mail.id}/test`, { to: testTo.trim() });
+      await api("POST", `/api/mails/${mail.id}/test`, { to: testTo.trim(), from });
       setMsg(`Test sent to ${testTo.trim()}`);
     } catch (e) {
       setErr((e as Error).message);
@@ -39,7 +51,7 @@ export function SendDialog({ mail, onClose, onSent }: { mail: Mail; onClose: () 
     setBusy("send");
     try {
       if (mail.audience_id !== audienceId) await saveMail(mail.id, { audience_id: audienceId });
-      const res = await api<{ mail: Mail }>("POST", `/api/mails/${mail.id}/send`, { scheduled_at: when || undefined });
+      const res = await api<{ mail: Mail }>("POST", `/api/mails/${mail.id}/send`, { scheduled_at: when || undefined, from });
       onSent(res.mail);
     } catch (e) {
       setErr((e as Error).message);
@@ -61,8 +73,18 @@ export function SendDialog({ mail, onClose, onSent }: { mail: Mail; onClose: () 
         ) : (
           <div className="space-y-4">
             {!fromReady ? (
-              <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">Set a “from” name and email in Settings before sending.</p>
-            ) : null}
+              <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">Add a sender in Settings before sending.</p>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>From</Label>
+                <Select value={from} onValueChange={setFrom}>
+                  <SelectTrigger><SelectValue placeholder="Select sender…" /></SelectTrigger>
+                  <SelectContent>
+                    {senders.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Audience</Label>

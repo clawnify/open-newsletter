@@ -1,32 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Monitor, Smartphone, Sparkles, ArrowLeft, Send, Save, RotateCcw, MousePointer2, X, Undo2, Redo2 } from "lucide-react";
+import { Monitor, Smartphone, ArrowLeft, Send, Save, RotateCcw, MousePointer2, Undo2, Redo2, Eye, SquarePen } from "lucide-react";
 import { useStore } from "../store";
 import { api } from "../api";
 import { baseDesign, effectiveDesign } from "../lib/design";
 import { diffTokens, withDefaults, type DesignTokens } from "../../shared/design";
-import { newBlock } from "../../shared/blocks";
+import { newBlock, markdownToBlocks, deriveTitle, blockId } from "../../shared/blocks";
 import type { Block, BlockType, Mail } from "../../shared/types";
 import { Preview, type EditHandlers } from "./preview";
 import { DesignPanel } from "./design-panel";
 import { SendDialog } from "./send-dialog";
+import { Chat, type ChatContext, type ApplyTool } from "./chat";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 export function Editor({ mailId, onBack }: { mailId: number; onBack: () => void }) {
   const store = useStore();
   const [mail, setMail] = useState<Mail | null>(store.mails.find((i) => i.id === mailId) || null);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [selectedId, setSelected] = useState<string | null>(null);
-  const [selectMode, setSelectMode] = useState(false);
   const [aiSelected, setAiSelected] = useState<Set<string>>(new Set());
-  const [prompt, setPrompt] = useState("");
-  const [generating, setGenerating] = useState(false);
   const [showSend, setShowSend] = useState(false);
   const [saved, setSaved] = useState(true);
 
+  // The assistant (and click-to-focus) target these blocks when set.
+  const selectMode = aiSelected.size > 0;
+
   // Undo/redo: snapshots of the whole mail. `record` is called before any
-  // meaningful change (edits, block ops, design, AI). Capped at 50 steps.
+  // meaningful change (edits, block ops, design, assistant). Capped at 50 steps.
   const [history, setHistory] = useState<Mail[]>([]);
   const [future, setFuture] = useState<Mail[]>([]);
   const live = useRef({ mail, history, future });
@@ -129,37 +130,88 @@ export function Editor({ mailId, onBack }: { mailId: number; onBack: () => void 
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  const enterSelect = (firstId?: string) => {
-    setSelectMode(true);
-    setAiSelected(firstId ? new Set([firstId]) : new Set());
-    setSelected(null);
-    setTimeout(() => document.getElementById("gen-input")?.focus(), 0);
-  };
-  const exitSelect = () => {
-    setSelectMode(false);
-    setAiSelected(new Set());
+
+  // ── Assistant bridge ────────────────────────────────────────────────
+  // A compact snapshot of the mail the assistant sees each turn.
+  const getContext = (): ChatContext => {
+    const cur = live.current.mail;
+    if (!cur) return {};
+    const outline =
+      (cur.blocks || []).map((b) => `[${b.id}] ${b.type}: ${blockPreview(b)}`).join("\n") || "(empty)";
+    const focus = [...aiSelected];
+    const focusNote = focus.length ? `\n\nThe user has these block ids in focus — scope edits to them: ${focus.join(", ")}` : "";
+    const d = `primary ${design.colors.primary}, background ${design.colors.background}, heading font ${design.typography.headingFont}, button radius ${design.layout.buttonRadius}px`;
+    return { title: cur.title || undefined, outline: outline + focusNote, design: d };
   };
 
-  const generate = async () => {
-    if (!mail || !prompt.trim()) return;
-    setGenerating(true);
-    const before = mail;
-    try {
-      let updated: Mail;
-      if (selectMode && aiSelected.size > 0) {
-        updated = await api<Mail>("POST", `/api/mails/${mail.id}/blocks/rewrite-batch`, { ids: [...aiSelected], prompt: prompt.trim() });
-        exitSelect();
-      } else {
-        updated = await api<Mail>("POST", `/api/mails/${mail.id}/generate`, { prompt: prompt.trim(), target: "all" });
+  // Applies a streamed tool-call to the live mail; returns a short result line.
+  const applyTool: ApplyTool = (name, input) => {
+    const cur = live.current.mail;
+    if (!cur) return "No newsletter is open.";
+    const commit = (p: Partial<Mail>) => {
+      record(cur);
+      const next = { ...cur, ...p };
+      live.current.mail = next; // sync so chained tool-calls in one turn compose
+      setMail(next);
+      queueSave(next, p);
+    };
+    switch (name) {
+      case "set_content": {
+        const blocks = markdownToBlocks(String(input.markdown || ""));
+        commit({ blocks, title: deriveTitle(blocks) });
+        return `Replaced the body with ${blocks.length} block(s).`;
       }
-      record(before); // make the generation undoable
-      setMail(updated);
-      await store.refreshMails();
-      setPrompt("");
-    } catch (e) {
-      store.setError((e as Error).message);
-    } finally {
-      setGenerating(false);
+      case "add_block": {
+        const add = markdownToBlocks(String(input.markdown || ""));
+        const curBlocks = cur.blocks || [];
+        const blocks = input.position === "start" ? [...add, ...curBlocks] : [...curBlocks, ...add];
+        commit({ blocks });
+        return `Added ${add.length} block(s).`;
+      }
+      case "edit_block": {
+        const text = String(input.text ?? input.markdown ?? "");
+        let touched = false;
+        const blocks = (cur.blocks || []).map((b): Block => {
+          if (b.id !== input.block_id) return b;
+          touched = true;
+          switch (b.type) {
+            case "heading": return { ...b, text };
+            case "text": return { ...b, md: text };
+            case "button": return { ...b, text, ...(input.href ? { href: String(input.href) } : {}) };
+            case "quote": return { ...b, text };
+            case "list": return { ...b, items: text.split("\n").map((s) => s.replace(/^\s*[-*+]\s+|^\s*\d+\.\s+/, "").trim()).filter(Boolean) };
+            case "image": return { ...b, alt: text };
+            default: return b; // divider / spacer / columns — nothing textual to set
+          }
+        });
+        if (!touched) return `No block with id ${input.block_id}.`;
+        commit({ blocks });
+        return "Rewrote the block in place.";
+      }
+      case "remove_block": {
+        commit({ blocks: (cur.blocks || []).filter((b) => b.id !== input.block_id) });
+        return "Removed the block.";
+      }
+      case "set_title": {
+        commit({ title: String(input.title || "") });
+        return "Set the title.";
+      }
+      case "set_design": {
+        const next = setDesignKey(base, String(input.key), input.value);
+        if (!next) return `I can't set "${input.key}".`;
+        commit(device === "mobile" ? { design_mobile: diffTokens(base, next) } : { design: next });
+        return `Set ${input.key}.`;
+      }
+      case "add_image": {
+        // src is resolved by the chat (it uploads the attachment before calling).
+        const src = String(input.src || "");
+        if (!src) return "No image to add.";
+        const block: Block = { id: blockId(), type: "image", src, alt: String(input.alt || ""), caption: "", href: "" };
+        commit({ blocks: [...(cur.blocks || []), block] });
+        return "Added the image.";
+      }
+      default:
+        return `Unknown tool: ${name}`;
     }
   };
 
@@ -179,14 +231,14 @@ export function Editor({ mailId, onBack }: { mailId: number; onBack: () => void 
 
   const edit: EditHandlers = {
     onMail: patch, onBlock, onReplace, onAdd, onMove, onDelete,
-    onBlockAI: (b) => enterSelect(b.id),
+    onBlockAI: (b) => toggleAI(b.id),
     selectedId, setSelected, selectMode, aiSelected, toggleAI,
   };
   const sent = mail.status !== "draft";
 
   return (
     <div className="flex h-full min-w-0 flex-col" onClick={() => !selectMode && setSelected(null)}>
-      <header className="flex items-center gap-3 border-b bg-background px-4 py-2.5">
+      <header className="relative flex items-center gap-3 border-b bg-background px-4 py-2.5">
         <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back"><ArrowLeft size={18} /></Button>
         <div className="flex items-center gap-2 text-sm">
           <Badge variant="secondary">Mail</Badge>
@@ -207,9 +259,32 @@ export function Editor({ mailId, onBack }: { mailId: number; onBack: () => void 
           <Button variant="outline" size="sm" onClick={saveAsTemplate}><Save size={15} /> Save as…</Button>
           <Button size="sm" onClick={() => setShowSend(true)}><Send size={15} /> Send</Button>
         </div>
+
+        {/* Edit / Preview — centered in the nav, independent of the side groups */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="pointer-events-auto">
+            <Segmented
+              options={[{ v: "edit", label: "Edit", icon: <SquarePen size={15} /> }, { v: "preview", label: "Preview", icon: <Eye size={15} /> }]}
+              value={mode}
+              onChange={(v) => setMode(v as "edit" | "preview")}
+            />
+          </div>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-96 shrink-0 flex-col border-r md:flex" onClick={(e) => e.stopPropagation()}>
+          <Chat
+            key={mailId}
+            mailId={mailId}
+            getContext={getContext}
+            applyTool={applyTool}
+            available={!!store.status?.ai_available}
+            selectedCount={aiSelected.size}
+            onClearSelection={() => setAiSelected(new Set())}
+          />
+        </aside>
+
         <div className="flex min-w-0 flex-1 flex-col bg-muted">
           {device === "mobile" ? (
             <div className="flex items-center justify-center gap-2 border-b border-amber-200 bg-amber-50 py-1.5 text-xs text-amber-700">
@@ -219,47 +294,15 @@ export function Editor({ mailId, onBack }: { mailId: number; onBack: () => void 
               ) : null}
             </div>
           ) : null}
-          {selectMode ? (
+          {mode === "edit" && selectMode ? (
             <div className="flex items-center justify-center gap-2 border-b border-primary/30 bg-accent py-1.5 text-xs text-foreground">
-              <MousePointer2 size={13} /> Click blocks to select, then describe how to rewrite them below. <strong>{aiSelected.size} selected</strong>.
+              <MousePointer2 size={13} /> Click blocks to focus them, then ask the assistant to rewrite them. <strong>{aiSelected.size} in focus</strong>.
             </div>
           ) : null}
 
           <div className="flex-1 overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto transition-all" style={{ maxWidth: device === "mobile" ? 390 : design.layout.contentWidth + 80 }}>
-              <Preview mail={mail} design={design} settings={store.settings!} edit={edit} />
-            </div>
-          </div>
-
-          <div className="border-t bg-background p-3" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto flex max-w-3xl items-center gap-2">
-              {selectMode ? (
-                <Badge variant="secondary" className="gap-1 py-1.5">
-                  <Sparkles size={13} /> {aiSelected.size} block{aiSelected.size === 1 ? "" : "s"}
-                  <button onClick={exitSelect} aria-label="Done selecting"><X size={12} /></button>
-                </Badge>
-              ) : (
-                <Button variant="outline" onClick={() => enterSelect()}>
-                  <MousePointer2 size={15} /> Select
-                </Button>
-              )}
-              <Input
-                id="gen-input"
-                placeholder={
-                  store.status?.ai_available
-                    ? selectMode
-                      ? aiSelected.size ? "How should I rewrite the selected blocks?" : "Select blocks above first…"
-                      : "Describe what to generate…"
-                    : "Connect OPENROUTER_API_KEY to generate"
-                }
-                value={prompt}
-                disabled={!store.status?.ai_available || generating}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && generate()}
-              />
-              <Button disabled={!store.status?.ai_available || !prompt.trim() || generating || (selectMode && !aiSelected.size)} onClick={generate}>
-                <Sparkles size={15} /> {generating ? "…" : "Generate"}
-              </Button>
+              <Preview mail={mail} design={design} settings={store.settings!} edit={mode === "edit" ? edit : undefined} />
             </div>
           </div>
         </div>
@@ -272,6 +315,37 @@ export function Editor({ mailId, onBack }: { mailId: number; onBack: () => void 
       {showSend ? <SendDialog mail={mail} onClose={() => setShowSend(false)} onSent={(i) => { setMail(i); setShowSend(false); store.refreshMails(); }} /> : null}
     </div>
   );
+}
+
+/** One-line preview of a block, for the assistant's outline. */
+function blockPreview(b: Block): string {
+  const clip = (s: string) => (s.length > 60 ? s.slice(0, 57) + "…" : s);
+  switch (b.type) {
+    case "heading": return clip(b.text) + ` (h${b.level})`;
+    case "text": return clip(b.md);
+    case "image": return `image ${b.alt || b.src}`;
+    case "button": return `button "${b.text}"`;
+    case "list": return clip(b.items.join(", "));
+    case "quote": return clip(b.text);
+    case "divider": return "divider";
+    case "spacer": return "spacer";
+    case "columns": return `${b.items.length} columns`;
+  }
+}
+
+const DESIGN_KEYS = new Set([
+  "colors.primary", "colors.background", "colors.text", "colors.secondary", "colors.onPrimary",
+  "typography.headingFont", "typography.bodyFont",
+  "layout.buttonRadius", "layout.imageRadius", "layout.cardRadius", "layout.contentWidth", "layout.outerPadding",
+]);
+
+/** Set one allow-listed dot-path token on a clone of the base design. */
+function setDesignKey(base: DesignTokens, key: string, value: unknown): DesignTokens | null {
+  if (!DESIGN_KEYS.has(key)) return null;
+  const next = structuredClone(base) as unknown as Record<string, Record<string, unknown>>;
+  const [group, field] = key.split(".");
+  next[group][field] = value;
+  return next as unknown as DesignTokens;
 }
 
 function Segmented<T extends string>({ options, value, onChange }: { options: { v: T; label: string; icon?: React.ReactNode }[]; value: T; onChange: (v: T) => void }) {

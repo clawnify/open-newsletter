@@ -6,6 +6,7 @@ import { renderEmailHtml } from "./render";
 import { BUILTIN_TEMPLATES } from "../shared/templates";
 import { DEFAULT_DESIGN, withDefaults, type DesignTokens } from "../shared/design";
 import { markdownToBlocks, blocksToMarkdown, blockId, eyebrowBlock, titleBlock, deckBlock, bylineBlock, deriveTitle } from "../shared/blocks";
+import { streamNewsletterChat, buildHintsContext, type ChatContext, type Hint } from "./agent";
 import type { Block, Mail, Settings, Template } from "../shared/types";
 
 type Env = {
@@ -15,6 +16,7 @@ type Env = {
     RESEND_API_KEY?: string;
     OPENROUTER_API_KEY?: string;
     NEWSLETTER_MODEL?: string;
+    GITHUB_TOKEN?: string;
   };
 };
 
@@ -43,7 +45,9 @@ async function ensureSeed() {
   for (const sql of [
     `ALTER TABLE mails ADD COLUMN design_mobile TEXT`,
     `ALTER TABLE mails ADD COLUMN blocks TEXT NOT NULL DEFAULT '[]'`,
+    `ALTER TABLE mails ADD COLUMN conversation TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE settings ADD COLUMN logo TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE settings ADD COLUMN senders TEXT NOT NULL DEFAULT '[]'`,
   ]) {
     try {
       await run(sql);
@@ -58,6 +62,54 @@ app.use("*", async (c, next) => {
   initDB(c.env);
   await ensureSeed();
   await next();
+});
+
+// ── AI assistant chat (editor left sidebar) ──────────────────────────
+// Streams a UI-message response for the editor's `useChat`. The editing tools
+// carry no server `execute` — they stream to the browser and mutate the live
+// mail there, so every edit lands on the editor's undo stack.
+app.post("/api/chat", async (c) => {
+  const env = c.env;
+  if (!env.OPENROUTER_API_KEY) return c.json({ error: "Connect OPENROUTER_API_KEY to use the assistant." }, 400);
+  const body = await c.req.json<{ messages: Parameters<typeof streamNewsletterChat>[0]["messages"]; context?: ChatContext; hints?: Hint[] }>();
+  const hintsText = await buildHintsContext(body.hints, env);
+  const repos = (body.hints || []).filter((h) => h.kind === "github" && h.repo).map((h) => h.repo.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, ""));
+  return streamNewsletterChat({
+    apiKey: env.OPENROUTER_API_KEY,
+    model: env.NEWSLETTER_MODEL,
+    messages: body.messages,
+    context: body.context,
+    hintsText,
+    github: repos.length ? { repos, token: env.GITHUB_TOKEN } : undefined,
+    readers: {
+      list: async () => {
+        const rows = await query<{ id: number; title: string; status: string }>("SELECT id, title, status FROM mails ORDER BY updated_at DESC LIMIT 30");
+        return rows.map((r) => ({ id: r.id, title: r.title, status: r.status }));
+      },
+      read: async (id) => {
+        const row = await get<{ title: string; blocks: string }>("SELECT title, blocks FROM mails WHERE id = ?", [id]);
+        if (!row) return null;
+        let blocks: Block[] = [];
+        try { blocks = JSON.parse(row.blocks || "[]"); } catch { /* corrupt blocks → empty */ }
+        return { title: row.title, markdown: blocksToMarkdown(blocks) };
+      },
+    },
+  });
+});
+
+// The assistant conversation is stored 1:1 with each mail so it reloads with
+// the newsletter. Opaque blob of AI-SDK UI messages — only this client reads it.
+app.get("/api/mails/:id/conversation", async (c) => {
+  const row = await get<{ conversation: string }>("SELECT conversation FROM mails WHERE id = ?", [Number(c.req.param("id"))]);
+  let messages: unknown[] = [];
+  try { messages = JSON.parse(row?.conversation || "[]"); } catch { /* corrupt → empty */ }
+  return c.json({ messages });
+});
+
+app.put("/api/mails/:id/conversation", async (c) => {
+  const { messages } = await c.req.json<{ messages: unknown[] }>();
+  await run("UPDATE mails SET conversation = ? WHERE id = ?", [JSON.stringify(messages || []), Number(c.req.param("id"))]);
+  return c.json({ ok: true });
 });
 
 // ── helpers ──────────────────────────────────────────────────────────
@@ -83,11 +135,14 @@ function parseMail(row: any): Mail {
 
 async function getSettings(): Promise<Settings> {
   const row = await get<any>("SELECT * FROM settings WHERE id = 1");
+  let senders: Settings["senders"] = [];
+  try { senders = JSON.parse(row?.senders || "[]"); } catch { /* corrupt → empty */ }
   return {
     publication_name: row?.publication_name || "My Newsletter",
     logo: row?.logo || "",
     from_name: row?.from_name || "",
     from_email: row?.from_email || "",
+    senders,
     default_audience_id: row?.default_audience_id || null,
     footer_text: row?.footer_text || "",
   };
@@ -132,8 +187,22 @@ app.get("/api/status", async (c) => {
   return c.json({
     resend_connected: !!provider,
     ai_available: !!env.OPENROUTER_API_KEY,
+    github_connected: !!env.GITHUB_TOKEN,
     audiences,
   });
+});
+
+// Repos the GITHUB_TOKEN can see — lets the chat offer a picker instead of
+// making the user type owner/repo. Empty (not an error) when no token is set.
+app.get("/api/github/repos", async (c) => {
+  const token = c.env.GITHUB_TOKEN;
+  if (!token) return c.json({ connected: false, repos: [] });
+  const r = await fetch("https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member", {
+    headers: { "User-Agent": "open-newsletter", Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) return c.json({ connected: true, repos: [], error: `GitHub ${r.status}` });
+  const data = (await r.json()) as Array<{ full_name: string; private: boolean }>;
+  return c.json({ connected: true, repos: data.map((d) => ({ full_name: d.full_name, private: d.private })) });
 });
 
 // ── settings ─────────────────────────────────────────────────────────
@@ -145,10 +214,21 @@ app.put("/api/settings", async (c) => {
   const cur = await getSettings();
   const next = { ...cur, ...b };
   await run(
-    `UPDATE settings SET publication_name = ?, logo = ?, from_name = ?, from_email = ?, default_audience_id = ?, footer_text = ? WHERE id = 1`,
-    [next.publication_name, next.logo, next.from_name, next.from_email, next.default_audience_id, next.footer_text],
+    `UPDATE settings SET publication_name = ?, logo = ?, from_name = ?, from_email = ?, senders = ?, default_audience_id = ?, footer_text = ? WHERE id = 1`,
+    [next.publication_name, next.logo, next.from_name, next.from_email, JSON.stringify(next.senders || []), next.default_audience_id, next.footer_text],
   );
   return c.json(await getSettings());
+});
+
+// Verified sending domains + the user's saved senders, for the Senders UI.
+app.get("/api/senders", async (c) => {
+  const p = provider(c);
+  let domains: { name: string; status: string }[] = [];
+  if (p) {
+    try { domains = await p.listDomains(); } catch { domains = []; }
+  }
+  const s = await getSettings();
+  return c.json({ domains, senders: s.senders });
 });
 
 // ── templates ────────────────────────────────────────────────────────
@@ -539,15 +619,15 @@ app.post("/api/mails/:id/test", async (c) => {
   const id = Number(c.req.param("id"));
   const p = provider(c);
   if (!p) return c.json({ error: "Resend not connected" }, 400);
-  const { to } = await c.req.json<{ to: string }>();
+  const { to, from: fromOverride } = await c.req.json<{ to: string; from?: string }>();
   if (!to?.trim()) return c.json({ error: "Recipient email required" }, 400);
 
   const row = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
   if (!row) return c.json({ error: "Not found" }, 404);
   const mail = parseMail(row);
   const s = await getSettings();
-  const from = fromAddress(s);
-  if (!from) return c.json({ error: "Set a from name and email in Settings first." }, 400);
+  const from = fromOverride?.includes("@") ? fromOverride : fromAddress(s);
+  if (!from) return c.json({ error: "Pick a sender, or set a from name and email in Settings first." }, 400);
 
   const html = renderEmailHtml(mail, await resolveDesign(mail), s);
   try {
@@ -562,7 +642,7 @@ app.post("/api/mails/:id/send", async (c) => {
   const id = Number(c.req.param("id"));
   const p = provider(c);
   if (!p) return c.json({ error: "Resend not connected" }, 400);
-  const { scheduled_at } = await c.req.json<{ scheduled_at?: string }>().catch(() => ({}) as any);
+  const { scheduled_at, from: fromOverride } = await c.req.json<{ scheduled_at?: string; from?: string }>().catch(() => ({}) as any);
 
   const row = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
   if (!row) return c.json({ error: "Not found" }, 404);
@@ -570,8 +650,8 @@ app.post("/api/mails/:id/send", async (c) => {
   if (!mail.audience_id) return c.json({ error: "Pick an audience before sending." }, 400);
 
   const s = await getSettings();
-  const from = fromAddress(s);
-  if (!from) return c.json({ error: "Set a from name and email in Settings first." }, 400);
+  const from = fromOverride?.includes("@") ? fromOverride : fromAddress(s);
+  if (!from) return c.json({ error: "Pick a sender, or set a from name and email in Settings first." }, 400);
 
   const html = renderEmailHtml(mail, await resolveDesign(mail), s);
   try {
