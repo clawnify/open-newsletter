@@ -20,6 +20,14 @@ type Env = {
 
 const app = new Hono<Env>();
 
+// Surface real error messages instead of Hono's opaque "Internal Server
+// Error" so the dashboard toast (and logs) say what actually failed.
+app.onError((err, c) => {
+  console.error("[api error]", err);
+  const message = err instanceof Error ? err.message : String(err);
+  return c.json({ error: message }, 500);
+});
+
 let seeded = false;
 async function ensureSeed() {
   if (seeded) return;
