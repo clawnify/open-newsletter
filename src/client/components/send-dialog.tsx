@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
-import type { Issue } from "../../shared/types";
+import type { Mail } from "../../shared/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export function SendDialog({ issue, onClose, onSent }: { issue: Issue; onClose: () => void; onSent: (i: Issue) => void }) {
-  const { status, settings, saveIssue } = useStore();
-  const [audienceId, setAudienceId] = useState(issue.audience_id || settings?.default_audience_id || "");
+export function SendDialog({ mail, onClose, onSent }: { mail: Mail; onClose: () => void; onSent: (i: Mail) => void }) {
+  const { status, settings, saveMail } = useStore();
+  const [audienceId, setAudienceId] = useState(mail.audience_id || settings?.default_audience_id || "");
   const [testTo, setTestTo] = useState("");
   const [when, setWhen] = useState("");
   const [busy, setBusy] = useState<"" | "test" | "send">("");
@@ -24,7 +24,7 @@ export function SendDialog({ issue, onClose, onSent }: { issue: Issue; onClose: 
   const sendTest = async () => {
     setErr(null); setMsg(null); setBusy("test");
     try {
-      await api("POST", `/api/issues/${issue.id}/test`, { to: testTo.trim() });
+      await api("POST", `/api/mails/${mail.id}/test`, { to: testTo.trim() });
       setMsg(`Test sent to ${testTo.trim()}`);
     } catch (e) {
       setErr((e as Error).message);
@@ -38,9 +38,9 @@ export function SendDialog({ issue, onClose, onSent }: { issue: Issue; onClose: 
     if (!audienceId) return setErr("Pick an audience.");
     setBusy("send");
     try {
-      if (issue.audience_id !== audienceId) await saveIssue(issue.id, { audience_id: audienceId });
-      const res = await api<{ issue: Issue }>("POST", `/api/issues/${issue.id}/send`, { scheduled_at: when || undefined });
-      onSent(res.issue);
+      if (mail.audience_id !== audienceId) await saveMail(mail.id, { audience_id: audienceId });
+      const res = await api<{ mail: Mail }>("POST", `/api/mails/${mail.id}/send`, { scheduled_at: when || undefined });
+      onSent(res.mail);
     } catch (e) {
       setErr((e as Error).message);
       setBusy("");
@@ -51,7 +51,7 @@ export function SendDialog({ issue, onClose, onSent }: { issue: Issue; onClose: 
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Send “{issue.title}”</DialogTitle>
+          <DialogTitle>Send “{mail.title}”</DialogTitle>
         </DialogHeader>
 
         {!connected ? (

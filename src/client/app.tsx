@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { StoreProvider, useStore } from "./store";
 import { Rail } from "./components/rail";
-import { IssuesView } from "./components/issues-view";
+import { MailsView } from "./components/mails-view";
 import { TemplatesView } from "./components/templates-view";
 import { AudienceView } from "./components/audience-view";
 import { SettingsView } from "./components/settings-view";
@@ -29,11 +29,11 @@ function Shell() {
       {editing === null ? <Rail view={view} navigate={setView} /> : null}
       <main className="min-w-0 flex-1 overflow-auto">
         {editing !== null ? (
-          <Editor issueId={editing} onBack={() => setEditing(null)} />
+          <Editor mailId={editing} onBack={() => setEditing(null)} />
         ) : view === "mail" ? (
-          <IssuesView openIssue={setEditing} />
+          <MailsView openMail={setEditing} />
         ) : view === "templates" ? (
-          <TemplatesView openIssue={setEditing} />
+          <TemplatesView openMail={setEditing} />
         ) : view === "audience" ? (
           <AudienceView />
         ) : (

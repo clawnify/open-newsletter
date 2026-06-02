@@ -42,8 +42,8 @@ export interface ColumnCell {
   text: string;
 }
 
-/** A newsletter issue — the core editable unit (Ghost calls this a "post"). */
-export interface Issue {
+/** A newsletter mail — the core editable unit (Ghost calls this a "post"). */
+export interface Mail {
   id: number;
   /** Publication eyebrow, e.g. "THE EDITORIAL REVIEW • VOLUME XXIII". */
   eyebrow: string;
@@ -56,12 +56,12 @@ export interface Issue {
   feature_image: string;
   /** Body as an ordered list of blocks. AI-generated, hand-editable. */
   blocks: Block[];
-  /** Per-issue DESIGN.md token overrides (merged onto template/default). */
+  /** Per-mail DESIGN.md token overrides (merged onto template/default). */
   design: DesignTokens | null;
   /** Mobile-only partial overrides, layered on `design` when viewing/editing mobile. */
   design_mobile: Partial<DesignTokens> | null;
   template_slug: string | null;
-  /** Resend audience this issue sends to. */
+  /** Resend audience this mail sends to. */
   audience_id: string | null;
   status: "draft" | "scheduled" | "sent";
   /** Resend broadcast id once created. */

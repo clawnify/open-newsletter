@@ -1,19 +1,19 @@
 import { DEFAULT_DESIGN, withDefaults, applyMobile, type DesignTokens } from "../../shared/design";
-import type { Issue, Template } from "../../shared/types";
+import type { Mail, Template } from "../../shared/types";
 
-/** Base (desktop) tokens for an issue: issue override → template → default. */
-export function baseDesign(issue: Issue, templates: Template[]): DesignTokens {
-  if (issue.design) return withDefaults(issue.design);
-  const t = templates.find((x) => x.slug === issue.template_slug);
+/** Base (desktop) tokens for an mail: mail override → template → default. */
+export function baseDesign(mail: Mail, templates: Template[]): DesignTokens {
+  if (mail.design) return withDefaults(mail.design);
+  const t = templates.find((x) => x.slug === mail.template_slug);
   return t ? withDefaults(t.design) : DEFAULT_DESIGN;
 }
 
 /** Effective tokens for a device: desktop = base, mobile = base + mobile override. */
 export function effectiveDesign(
-  issue: Issue,
+  mail: Mail,
   templates: Template[],
   device: "desktop" | "mobile" = "desktop",
 ): DesignTokens {
-  const base = baseDesign(issue, templates);
-  return device === "mobile" ? applyMobile(base, issue.design_mobile) : base;
+  const base = baseDesign(mail, templates);
+  return device === "mobile" ? applyMobile(base, mail.design_mobile) : base;
 }

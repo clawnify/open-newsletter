@@ -6,7 +6,7 @@ import { renderEmailHtml } from "./render";
 import { BUILTIN_TEMPLATES } from "../shared/templates";
 import { DEFAULT_DESIGN, withDefaults, type DesignTokens } from "../shared/design";
 import { markdownToBlocks, blocksToMarkdown, blockId, eyebrowBlock, titleBlock, deckBlock, bylineBlock, deriveTitle } from "../shared/blocks";
-import type { Block, Issue, Settings, Template } from "../shared/types";
+import type { Block, Mail, Settings, Template } from "../shared/types";
 
 type Env = {
   Bindings: {
@@ -33,8 +33,8 @@ async function ensureSeed() {
   await run(`INSERT OR IGNORE INTO settings (id) VALUES (1)`);
   // Additive migrations for DBs created before these columns existed.
   for (const sql of [
-    `ALTER TABLE issues ADD COLUMN design_mobile TEXT`,
-    `ALTER TABLE issues ADD COLUMN blocks TEXT NOT NULL DEFAULT '[]'`,
+    `ALTER TABLE mails ADD COLUMN design_mobile TEXT`,
+    `ALTER TABLE mails ADD COLUMN blocks TEXT NOT NULL DEFAULT '[]'`,
     `ALTER TABLE settings ADD COLUMN logo TEXT NOT NULL DEFAULT ''`,
   ]) {
     try {
@@ -58,7 +58,7 @@ function envOf(c: any): Record<string, string> {
   return c.env as unknown as Record<string, string>;
 }
 
-function parseIssue(row: any): Issue {
+function parseMail(row: any): Mail {
   let blocks: Block[] = [];
   try {
     blocks = row.blocks ? JSON.parse(row.blocks) : [];
@@ -96,10 +96,10 @@ async function templateDesign(slug: string | null): Promise<DesignTokens> {
   }
 }
 
-/** Effective tokens: issue override → template → default. */
-async function resolveDesign(issue: Issue): Promise<DesignTokens> {
-  if (issue.design) return withDefaults(issue.design);
-  return templateDesign(issue.template_slug);
+/** Effective tokens: mail override → template → default. */
+async function resolveDesign(mail: Mail): Promise<DesignTokens> {
+  if (mail.design) return withDefaults(mail.design);
+  return templateDesign(mail.template_slug);
 }
 
 function fromAddress(s: Settings): string | null {
@@ -158,25 +158,25 @@ app.get("/api/templates", async (c) => {
 });
 
 app.post("/api/templates", async (c) => {
-  const b = await c.req.json<Partial<Template> & { from_issue_id?: number }>();
+  const b = await c.req.json<Partial<Template> & { from_mail_id?: number }>();
   if (!b.name?.trim()) return c.json({ error: "Name required" }, 400);
 
   let design = b.design;
   let skeleton = b.skeleton;
-  // Save-as from an existing issue: snapshot its design + content.
-  if (b.from_issue_id) {
-    const row = await get<any>("SELECT * FROM issues WHERE id = ?", [b.from_issue_id]);
+  // Save-as from an existing mail: snapshot its design + content.
+  if (b.from_mail_id) {
+    const row = await get<any>("SELECT * FROM mails WHERE id = ?", [b.from_mail_id]);
     if (row) {
-      const issue = parseIssue(row);
-      design = design || (await resolveDesign(issue));
+      const mail = parseMail(row);
+      design = design || (await resolveDesign(mail));
       skeleton = skeleton || {
-        eyebrow: issue.eyebrow,
-        title: issue.title,
-        subtitle: issue.subtitle,
-        byline_name: issue.byline_name,
-        byline_date: issue.byline_date,
-        feature_image: issue.feature_image,
-        blocks: issue.blocks,
+        eyebrow: mail.eyebrow,
+        title: mail.title,
+        subtitle: mail.subtitle,
+        byline_name: mail.byline_name,
+        byline_date: mail.byline_date,
+        feature_image: mail.feature_image,
+        blocks: mail.blocks,
       };
     }
   }
@@ -204,20 +204,20 @@ app.delete("/api/templates/:slug", async (c) => {
   return c.json({ ok: true });
 });
 
-// ── issues ───────────────────────────────────────────────────────────
+// ── mails ───────────────────────────────────────────────────────────
 
-app.get("/api/issues", async (c) => {
-  const rows = await query<any>("SELECT * FROM issues ORDER BY updated_at DESC");
-  return c.json(rows.map(parseIssue));
+app.get("/api/mails", async (c) => {
+  const rows = await query<any>("SELECT * FROM mails ORDER BY updated_at DESC");
+  return c.json(rows.map(parseMail));
 });
 
-app.get("/api/issues/:id", async (c) => {
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [Number(c.req.param("id"))]);
+app.get("/api/mails/:id", async (c) => {
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [Number(c.req.param("id"))]);
   if (!row) return c.json({ error: "Not found" }, 404);
-  return c.json(parseIssue(row));
+  return c.json(parseMail(row));
 });
 
-app.post("/api/issues", async (c) => {
+app.post("/api/mails", async (c) => {
   const b = await c.req.json<{ template_slug?: string }>().catch(() => ({}) as any);
   const slug = b.template_slug || "classic-editorial";
   const t = await get<any>("SELECT * FROM templates WHERE slug = ?", [slug]);
@@ -237,19 +237,19 @@ app.post("/api/issues", async (c) => {
   const blocks: Block[] = [...masthead, ...((skeleton.blocks as Block[]) || [])];
 
   const result = await run(
-    `INSERT INTO issues (eyebrow, title, subtitle, byline_name, byline_date, feature_image, blocks, template_slug, audience_id)
+    `INSERT INTO mails (eyebrow, title, subtitle, byline_name, byline_date, feature_image, blocks, template_slug, audience_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [eyebrow, title, subtitle, skeleton.byline_name || "", skeleton.byline_date || "", skeleton.feature_image || "", JSON.stringify(blocks), slug, s.default_audience_id],
   );
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [result.lastInsertRowid]);
-  return c.json(parseIssue(row), 201);
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [result.lastInsertRowid]);
+  return c.json(parseMail(row), 201);
 });
 
-app.put("/api/issues/:id", async (c) => {
+app.put("/api/mails/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const existing = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
+  const existing = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
   if (!existing) return c.json({ error: "Not found" }, 404);
-  const b = await c.req.json<Partial<Issue>>();
+  const b = await c.req.json<Partial<Mail>>();
 
   const fields: Record<string, unknown> = {
     eyebrow: b.eyebrow ?? existing.eyebrow,
@@ -277,27 +277,27 @@ app.put("/api/issues/:id", async (c) => {
   if (b.blocks !== undefined) fields.title = deriveTitle(b.blocks);
 
   await run(
-    `UPDATE issues SET eyebrow=?, title=?, subtitle=?, byline_name=?, byline_date=?, feature_image=?, blocks=?, design=?, design_mobile=?, template_slug=?, audience_id=?, status=?, scheduled_at=?, updated_at=datetime('now') WHERE id=?`,
+    `UPDATE mails SET eyebrow=?, title=?, subtitle=?, byline_name=?, byline_date=?, feature_image=?, blocks=?, design=?, design_mobile=?, template_slug=?, audience_id=?, status=?, scheduled_at=?, updated_at=datetime('now') WHERE id=?`,
     [
       fields.eyebrow, fields.title, fields.subtitle, fields.byline_name, fields.byline_date,
       fields.feature_image, fields.blocks, fields.design, fields.design_mobile, fields.template_slug, fields.audience_id,
       fields.status, fields.scheduled_at, id,
     ],
   );
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
-  return c.json(parseIssue(row));
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
+  return c.json(parseMail(row));
 });
 
-app.delete("/api/issues/:id", async (c) => {
-  await run("DELETE FROM issues WHERE id = ?", [Number(c.req.param("id"))]);
+app.delete("/api/mails/:id", async (c) => {
+  await run("DELETE FROM mails WHERE id = ?", [Number(c.req.param("id"))]);
   return c.json({ ok: true });
 });
 
 // ── generation ───────────────────────────────────────────────────────
 
-app.post("/api/issues/:id/generate", async (c) => {
+app.post("/api/mails/:id/generate", async (c) => {
   const id = Number(c.req.param("id"));
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
   if (!row) return c.json({ error: "Not found" }, 404);
   const env = envOf(c);
   if (!env.OPENROUTER_API_KEY) return c.json({ error: "AI generation unavailable: connect an OpenRouter API key." }, 400);
@@ -308,16 +308,16 @@ app.post("/api/issues/:id/generate", async (c) => {
   }>();
   if (!prompt?.trim()) return c.json({ error: "Prompt required" }, 400);
   const s = await getSettings();
-  const issue = parseIssue(row);
-  const bodyMd = blocksToMarkdown(issue.blocks);
-  const ctx = { title: issue.title, subtitle: issue.subtitle, eyebrow: issue.eyebrow, body_md: bodyMd };
+  const mail = parseMail(row);
+  const bodyMd = blocksToMarkdown(mail.blocks);
+  const ctx = { title: mail.title, subtitle: mail.subtitle, eyebrow: mail.eyebrow, body_md: bodyMd };
 
   try {
     if (!target || target === "all") {
       const draft = await generateDraft(env, {
         prompt: prompt.trim(),
         publication: s.publication_name,
-        current: issue.blocks.length ? { title: issue.title, body_md: bodyMd } : null,
+        current: mail.blocks.length ? { title: mail.title, body_md: bodyMd } : null,
       });
       // Rebuild masthead (styled text/heading) + body from the draft.
       const blocks: Block[] = [];
@@ -326,29 +326,29 @@ app.post("/api/issues/:id/generate", async (c) => {
       if (draft.subtitle) blocks.push(deckBlock(draft.subtitle));
       blocks.push(...markdownToBlocks(draft.body_md));
       await run(
-        `UPDATE issues SET eyebrow=?, title=?, subtitle=?, blocks=?, updated_at=datetime('now') WHERE id=?`,
-        [draft.eyebrow || issue.eyebrow, draft.title, draft.subtitle, JSON.stringify(blocks), id],
+        `UPDATE mails SET eyebrow=?, title=?, subtitle=?, blocks=?, updated_at=datetime('now') WHERE id=?`,
+        [draft.eyebrow || mail.eyebrow, draft.title, draft.subtitle, JSON.stringify(blocks), id],
       );
     } else {
       const value = await generateField(env, { field: target, prompt: prompt.trim(), publication: s.publication_name, context: ctx });
       if (target === "body") {
-        await run(`UPDATE issues SET blocks=?, updated_at=datetime('now') WHERE id=?`, [
+        await run(`UPDATE mails SET blocks=?, updated_at=datetime('now') WHERE id=?`, [
           JSON.stringify(markdownToBlocks(value)),
           id,
         ]);
       } else {
-        await run(`UPDATE issues SET ${target}=?, updated_at=datetime('now') WHERE id=?`, [value, id]);
+        await run(`UPDATE mails SET ${target}=?, updated_at=datetime('now') WHERE id=?`, [value, id]);
       }
     }
-    const updated = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
-    return c.json(parseIssue(updated));
+    const updated = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
+    return c.json(parseMail(updated));
   } catch (e: any) {
     return c.json({ error: e?.message || "Generation failed" }, 502);
   }
 });
 
 // Rewrite a single block with AI (selective generation at block level).
-app.post("/api/issues/:id/blocks/:blockId/rewrite", async (c) => {
+app.post("/api/mails/:id/blocks/:blockId/rewrite", async (c) => {
   const id = Number(c.req.param("id"));
   const blockId = c.req.param("blockId");
   const env = envOf(c);
@@ -356,15 +356,15 @@ app.post("/api/issues/:id/blocks/:blockId/rewrite", async (c) => {
   const { prompt } = await c.req.json<{ prompt: string }>();
   if (!prompt?.trim()) return c.json({ error: "Prompt required" }, 400);
 
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
   if (!row) return c.json({ error: "Not found" }, 404);
-  const issue = parseIssue(row);
-  const block = issue.blocks.find((b) => b.id === blockId);
+  const mail = parseMail(row);
+  const block = mail.blocks.find((b) => b.id === blockId);
   if (!block) return c.json({ error: "Block not found" }, 404);
 
   const system =
     "You are an expert newsletter editor. Rewrite the given content per the instruction. Output ONLY the replacement content, no preamble, no quotes, no code fences.";
-  const ctx = `Issue title: ${issue.title}\n`;
+  const ctx = `Mail title: ${mail.title}\n`;
 
   try {
     let patched = block;
@@ -380,17 +380,17 @@ app.post("/api/issues/:id/blocks/:blockId/rewrite", async (c) => {
     } else {
       return c.json({ error: `Can't AI-rewrite a ${block.type} block` }, 400);
     }
-    const blocks = issue.blocks.map((b) => (b.id === blockId ? patched : b));
-    await run(`UPDATE issues SET blocks=?, updated_at=datetime('now') WHERE id=?`, [JSON.stringify(blocks), id]);
-    const updated = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
-    return c.json(parseIssue(updated));
+    const blocks = mail.blocks.map((b) => (b.id === blockId ? patched : b));
+    await run(`UPDATE mails SET blocks=?, updated_at=datetime('now') WHERE id=?`, [JSON.stringify(blocks), id]);
+    const updated = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
+    return c.json(parseMail(updated));
   } catch (e: any) {
     return c.json({ error: e?.message || "Rewrite failed" }, 502);
   }
 });
 
 // Rewrite several selected blocks at once (multi-select AI), structured per block.
-app.post("/api/issues/:id/blocks/rewrite-batch", async (c) => {
+app.post("/api/mails/:id/blocks/rewrite-batch", async (c) => {
   const id = Number(c.req.param("id"));
   const env = envOf(c);
   if (!env.OPENROUTER_API_KEY) return c.json({ error: "AI generation unavailable: connect an OpenRouter API key." }, 400);
@@ -398,12 +398,12 @@ app.post("/api/issues/:id/blocks/rewrite-batch", async (c) => {
   if (!prompt?.trim()) return c.json({ error: "Prompt required" }, 400);
   if (!ids?.length) return c.json({ error: "Select at least one block" }, 400);
 
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
   if (!row) return c.json({ error: "Not found" }, 404);
-  const issue = parseIssue(row);
+  const mail = parseMail(row);
   const s = await getSettings();
 
-  const sel = issue.blocks.filter((b) => ids.includes(b.id));
+  const sel = mail.blocks.filter((b) => ids.includes(b.id));
   const sections = sel
     .map((b) => {
       if (b.type === "text") return { id: b.id, type: b.type, current: b.md };
@@ -416,7 +416,7 @@ app.post("/api/issues/:id/blocks/rewrite-batch", async (c) => {
 
   try {
     const out = await rewriteBatch(env, prompt.trim(), sections, s.publication_name);
-    const blocks = issue.blocks.map((b) => {
+    const blocks = mail.blocks.map((b) => {
       const v = out[b.id];
       if (v == null) return b;
       if (b.type === "text") return { ...b, md: v };
@@ -424,9 +424,9 @@ app.post("/api/issues/:id/blocks/rewrite-batch", async (c) => {
       if (b.type === "list") return { ...b, items: String(v).split("\n").map((x) => x.replace(/^[-*\d.\s]+/, "").trim()).filter(Boolean) };
       return b;
     });
-    await run(`UPDATE issues SET blocks=?, updated_at=datetime('now') WHERE id=?`, [JSON.stringify(blocks), id]);
-    const updated = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
-    return c.json(parseIssue(updated));
+    await run(`UPDATE mails SET blocks=?, updated_at=datetime('now') WHERE id=?`, [JSON.stringify(blocks), id]);
+    const updated = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
+    return c.json(parseMail(updated));
   } catch (e: any) {
     return c.json({ error: e?.message || "Rewrite failed" }, 502);
   }
@@ -434,12 +434,12 @@ app.post("/api/issues/:id/blocks/rewrite-batch", async (c) => {
 
 // ── preview (server-rendered email HTML) ─────────────────────────────
 
-app.get("/api/issues/:id/preview", async (c) => {
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [Number(c.req.param("id"))]);
+app.get("/api/mails/:id/preview", async (c) => {
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [Number(c.req.param("id"))]);
   if (!row) return c.json({ error: "Not found" }, 404);
-  const issue = parseIssue(row);
-  const design = await resolveDesign(issue);
-  const html = renderEmailHtml(issue, design, await getSettings(), { mobile: issue.design_mobile });
+  const mail = parseMail(row);
+  const design = await resolveDesign(mail);
+  const html = renderEmailHtml(mail, design, await getSettings(), { mobile: mail.design_mobile });
   return c.html(html);
 });
 
@@ -527,55 +527,55 @@ app.delete("/api/audiences/:id/contacts/:contactId", async (c) => {
 
 // ── send ─────────────────────────────────────────────────────────────
 
-app.post("/api/issues/:id/test", async (c) => {
+app.post("/api/mails/:id/test", async (c) => {
   const id = Number(c.req.param("id"));
   const p = provider(c);
   if (!p) return c.json({ error: "Resend not connected" }, 400);
   const { to } = await c.req.json<{ to: string }>();
   if (!to?.trim()) return c.json({ error: "Recipient email required" }, 400);
 
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
   if (!row) return c.json({ error: "Not found" }, 404);
-  const issue = parseIssue(row);
+  const mail = parseMail(row);
   const s = await getSettings();
   const from = fromAddress(s);
   if (!from) return c.json({ error: "Set a from name and email in Settings first." }, 400);
 
-  const html = renderEmailHtml(issue, await resolveDesign(issue), s);
+  const html = renderEmailHtml(mail, await resolveDesign(mail), s);
   try {
-    const r = await p.sendEmail({ from, to: to.trim(), subject: issue.title, html });
+    const r = await p.sendEmail({ from, to: to.trim(), subject: mail.title, html });
     return c.json({ ok: true, id: r.id });
   } catch (e: any) {
     return c.json({ error: e?.message || "Test send failed" }, 502);
   }
 });
 
-app.post("/api/issues/:id/send", async (c) => {
+app.post("/api/mails/:id/send", async (c) => {
   const id = Number(c.req.param("id"));
   const p = provider(c);
   if (!p) return c.json({ error: "Resend not connected" }, 400);
   const { scheduled_at } = await c.req.json<{ scheduled_at?: string }>().catch(() => ({}) as any);
 
-  const row = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
+  const row = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
   if (!row) return c.json({ error: "Not found" }, 404);
-  const issue = parseIssue(row);
-  if (!issue.audience_id) return c.json({ error: "Pick an audience before sending." }, 400);
+  const mail = parseMail(row);
+  if (!mail.audience_id) return c.json({ error: "Pick an audience before sending." }, 400);
 
   const s = await getSettings();
   const from = fromAddress(s);
   if (!from) return c.json({ error: "Set a from name and email in Settings first." }, 400);
 
-  const html = renderEmailHtml(issue, await resolveDesign(issue), s);
+  const html = renderEmailHtml(mail, await resolveDesign(mail), s);
   try {
-    const b = await p.createBroadcast({ audienceId: issue.audience_id, from, subject: issue.title, html });
+    const b = await p.createBroadcast({ audienceId: mail.audience_id, from, subject: mail.title, html });
     await p.sendBroadcast(b.id, scheduled_at || null);
     const status = scheduled_at ? "scheduled" : "sent";
     await run(
-      `UPDATE issues SET status=?, broadcast_id=?, scheduled_at=?, sent_at=?, updated_at=datetime('now') WHERE id=?`,
+      `UPDATE mails SET status=?, broadcast_id=?, scheduled_at=?, sent_at=?, updated_at=datetime('now') WHERE id=?`,
       [status, b.id, scheduled_at || null, scheduled_at ? null : new Date().toISOString(), id],
     );
-    const updated = await get<any>("SELECT * FROM issues WHERE id = ?", [id]);
-    return c.json({ ok: true, broadcast_id: b.id, issue: parseIssue(updated) });
+    const updated = await get<any>("SELECT * FROM mails WHERE id = ?", [id]);
+    return c.json({ ok: true, broadcast_id: b.id, mail: parseMail(updated) });
   } catch (e: any) {
     return c.json({ error: e?.message || "Send failed" }, 502);
   }

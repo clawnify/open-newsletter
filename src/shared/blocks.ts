@@ -3,7 +3,7 @@
  *
  * The AI still produces Markdown (robust, well-trained); we convert it
  * to blocks for editing and rendering. The reverse (blocks → Markdown)
- * gives the AI plain context when revising a single block or the issue.
+ * gives the AI plain context when revising a single block or the mail.
  */
 import type { Block, ColumnCell } from "./types";
 

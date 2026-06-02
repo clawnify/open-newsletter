@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import { api } from "./api";
-import type { Issue, Template, Settings, StatusInfo } from "../shared/types";
+import type { Mail, Template, Settings, StatusInfo } from "../shared/types";
 
 interface Store {
   loading: boolean;
@@ -10,16 +10,16 @@ interface Store {
   status: StatusInfo | null;
   settings: Settings | null;
   templates: Template[];
-  issues: Issue[];
+  mails: Mail[];
 
   refreshStatus: () => Promise<void>;
-  refreshIssues: () => Promise<void>;
+  refreshMails: () => Promise<void>;
   refreshTemplates: () => Promise<void>;
   saveSettings: (s: Partial<Settings>) => Promise<void>;
 
-  createIssue: (templateSlug?: string) => Promise<Issue>;
-  saveIssue: (id: number, patch: Partial<Issue>) => Promise<Issue>;
-  deleteIssue: (id: number) => Promise<void>;
+  createMail: (templateSlug?: string) => Promise<Mail>;
+  saveMail: (id: number, patch: Partial<Mail>) => Promise<Mail>;
+  deleteMail: (id: number) => Promise<void>;
 }
 
 const Ctx = createContext<Store>(null as unknown as Store);
@@ -31,31 +31,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<StatusInfo | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [issues, setIssues] = useState<Issue[]>([]);
+  const [mails, setMails] = useState<Mail[]>([]);
 
   const refreshStatus = useCallback(async () => setStatus(await api<StatusInfo>("GET", "/api/status")), []);
-  const refreshIssues = useCallback(async () => setIssues(await api<Issue[]>("GET", "/api/issues")), []);
+  const refreshMails = useCallback(async () => setMails(await api<Mail[]>("GET", "/api/mails")), []);
   const refreshTemplates = useCallback(async () => setTemplates(await api<Template[]>("GET", "/api/templates")), []);
 
   const saveSettings = useCallback(async (s: Partial<Settings>) => {
     setSettings(await api<Settings>("PUT", "/api/settings", s));
   }, []);
 
-  const createIssue = useCallback(async (templateSlug?: string) => {
-    const issue = await api<Issue>("POST", "/api/issues", { template_slug: templateSlug });
-    setIssues((prev) => [issue, ...prev]);
-    return issue;
+  const createMail = useCallback(async (templateSlug?: string) => {
+    const mail = await api<Mail>("POST", "/api/mails", { template_slug: templateSlug });
+    setMails((prev) => [mail, ...prev]);
+    return mail;
   }, []);
 
-  const saveIssue = useCallback(async (id: number, patch: Partial<Issue>) => {
-    const issue = await api<Issue>("PUT", `/api/issues/${id}`, patch);
-    setIssues((prev) => prev.map((i) => (i.id === id ? issue : i)));
-    return issue;
+  const saveMail = useCallback(async (id: number, patch: Partial<Mail>) => {
+    const mail = await api<Mail>("PUT", `/api/mails/${id}`, patch);
+    setMails((prev) => prev.map((i) => (i.id === id ? mail : i)));
+    return mail;
   }, []);
 
-  const deleteIssue = useCallback(async (id: number) => {
-    await api("DELETE", `/api/issues/${id}`);
-    setIssues((prev) => prev.filter((i) => i.id !== id));
+  const deleteMail = useCallback(async (id: number) => {
+    await api("DELETE", `/api/mails/${id}`);
+    setMails((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
   const booted = useRef(false);
@@ -69,7 +69,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         api<StatusInfo>("GET", "/api/status").then(setStatus),
         api<Settings>("GET", "/api/settings").then(setSettings),
         api<Template[]>("GET", "/api/templates").then(setTemplates),
-        api<Issue[]>("GET", "/api/issues").then(setIssues),
+        api<Mail[]>("GET", "/api/mails").then(setMails),
       ]);
       const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
       if (failed) setError((failed.reason as Error).message);
@@ -78,8 +78,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: Store = {
-    loading, error, setError, status, settings, templates, issues,
-    refreshStatus, refreshIssues, refreshTemplates, saveSettings, createIssue, saveIssue, deleteIssue,
+    loading, error, setError, status, settings, templates, mails,
+    refreshStatus, refreshMails, refreshTemplates, saveSettings, createMail, saveMail, deleteMail,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -2,7 +2,7 @@
 
 [![Deploy with Clawnify](https://app.clawnify.com/deploy-button.svg)](https://app.clawnify.com/deploy?repo=clawnify/open-newsletter)
 
-A **generation-first newsletter studio**. Describe an issue and let AI draft
+A **generation-first newsletter studio**. Describe a newsletter and let AI draft
 it, design it live with [DESIGN.md](https://github.com/google-labs-code/design.md)
 tokens, and send it to your audience through **Resend**. Built with
 **React + Tailwind CSS + Hono + D1**, deploys to Cloudflare Workers via
@@ -24,7 +24,7 @@ sending pipeline, fully yours. No per-subscriber pricing, no lock-in.
 - **Desktop / Mobile preview** — a faithful canvas that mirrors the email
   renderer exactly.
 - **Template library** — three shipped looks (Classic Editorial, Minimal
-  Mono, Bold Bulletin); **Save as…** turns any issue into your own template.
+  Mono, Bold Bulletin); **Save as…** turns any mail into your own template.
 - **Resend sending** — send to a Resend audience (broadcast), send a test to
   yourself, or schedule for later. Manage contacts from the Audience view.
 - **Email-safe rendering** — table-wrapped, inline-styled HTML with an
@@ -33,7 +33,7 @@ sending pipeline, fully yours. No per-subscriber pricing, no lock-in.
 ## How it works
 
 ```
-Prompt ──▶ AI draft (OpenRouter) ──▶ Issue (D1)
+Prompt ──▶ AI draft (OpenRouter) ──▶ Mail (D1)
                                        │
             DESIGN.md tokens ──────────┤
                                        ▼
@@ -43,7 +43,7 @@ Prompt ──▶ AI draft (OpenRouter) ──▶ Issue (D1)
                 Resend broadcast ──▶ your audience
 ```
 
-A **template** = a `DESIGN.md` token set + a content skeleton. Each issue can
+A **template** = a `DESIGN.md` token set + a content skeleton. Each mail can
 override the template's tokens; the design panel edits that override live and
 "Save as…" serializes it back to the DESIGN.md format.
 
@@ -53,7 +53,7 @@ override the template's tokens; the design panel edits that override live and
 |-------|-----------|
 | **Frontend** | React, TypeScript, Tailwind CSS v4, Vite, shadcn/ui |
 | **Backend** | Hono (Cloudflare Worker) |
-| **Database** | D1 (issues, templates, settings) |
+| **Database** | D1 (mails, templates, settings) |
 | **Email** | Resend (Broadcasts + Contacts API) |
 | **AI** | OpenRouter (configurable model) |
 | **Icons** | Lucide |
@@ -117,10 +117,10 @@ src/
     design.ts        — DESIGN.md token model, panel metadata, CSS-var + serializer
     templates.ts     — built-in templates (runtime mirror of templates/*/DESIGN.md)
     markdown.ts      — email-safe Markdown → HTML
-    types.ts         — Issue, Template, Settings, Resend types
+    types.ts         — Mail, Template, Settings, Resend types
   server/
-    index.ts         — Hono API (issues, templates, settings, audiences, generate, send)
-    render.ts        — issue + tokens → email-safe inlined HTML
+    index.ts         — Hono API (mails, templates, settings, audiences, generate, send)
+    render.ts        — mail + tokens → email-safe inlined HTML
     ai.ts            — OpenRouter generation
     providers/       — EmailProvider interface + Resend adapter (add providers here)
     schema.sql       — D1 schema
@@ -131,7 +131,7 @@ src/
       editor.tsx       — top bar, preview/edit, generation bar
       preview.tsx      — live canvas (mirrors render.ts)
       design-panel.tsx — the DESIGN.md token editor
-      …                — issues, templates, audience, settings views
+      …                — mails, templates, audience, settings views
 DESIGN.md            — the default brand (Classic Editorial), Google Labs format
 templates/<slug>/    — each template as DESIGN.md + content.md
 ```

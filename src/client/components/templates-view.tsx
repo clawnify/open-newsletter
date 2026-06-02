@@ -6,13 +6,13 @@ import type { Template } from "../../shared/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-export function TemplatesView({ openIssue }: { openIssue: (id: number) => void }) {
-  const { templates, createIssue, refreshTemplates, setError } = useStore();
+export function TemplatesView({ openMail }: { openMail: (id: number) => void }) {
+  const { templates, createMail, refreshTemplates, setError } = useStore();
 
   const use = async (slug: string) => {
     try {
-      const issue = await createIssue(slug);
-      openIssue(issue.id);
+      const mail = await createMail(slug);
+      openMail(mail.id);
     } catch (e) {
       setError((e as Error).message);
     }

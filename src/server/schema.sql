@@ -1,5 +1,5 @@
--- Newsletter issues (Ghost calls these "posts").
-CREATE TABLE IF NOT EXISTS issues (
+-- Newsletter mails (Ghost calls these "posts").
+CREATE TABLE IF NOT EXISTS mails (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   eyebrow TEXT NOT NULL DEFAULT '',
   title TEXT NOT NULL DEFAULT 'Untitled',
@@ -9,12 +9,12 @@ CREATE TABLE IF NOT EXISTS issues (
   feature_image TEXT NOT NULL DEFAULT '',
   -- Body as an ordered JSON array of blocks.
   blocks TEXT NOT NULL DEFAULT '[]',
-  -- Per-issue DESIGN.md token overrides (JSON), or NULL to inherit template/default.
+  -- Per-mail DESIGN.md token overrides (JSON), or NULL to inherit template/default.
   design TEXT,
   -- Mobile-only token overrides (partial JSON), layered on top of `design` when device=mobile.
   design_mobile TEXT,
   template_slug TEXT,
-  -- Resend segment (audience) id this issue targets.
+  -- Resend segment (audience) id this mail targets.
   audience_id TEXT,
   status TEXT NOT NULL DEFAULT 'draft',  -- draft | scheduled | sent
   broadcast_id TEXT,
@@ -47,5 +47,5 @@ CREATE TABLE IF NOT EXISTS settings (
   footer_text TEXT NOT NULL DEFAULT ''
 );
 
-CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
-CREATE INDEX IF NOT EXISTS idx_issues_updated ON issues(updated_at);
+CREATE INDEX IF NOT EXISTS idx_mails_status ON mails(status);
+CREATE INDEX IF NOT EXISTS idx_mails_updated ON mails(updated_at);

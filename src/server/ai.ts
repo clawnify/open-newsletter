@@ -22,7 +22,7 @@ export interface GenDraft {
   body_md: string;
 }
 
-const SYSTEM = `You are an expert newsletter editor. You write a single newsletter issue as clean, scannable editorial prose.
+const SYSTEM = `You are an expert newsletter editor. You write a single newsletter mail as clean, scannable editorial prose.
 
 Output rules:
 - Respond with ONLY a JSON object, no prose around it, no code fences.
@@ -30,7 +30,7 @@ Output rules:
 - "eyebrow": a short kicker like "WEEKLY DIGEST · ISSUE 12" (<= 40 chars). Use the publication name if given.
 - "title": a compelling headline (<= 80 chars). No trailing period.
 - "subtitle": one-sentence deck/standfirst that expands the title.
-- "body_md": the issue body in Markdown. Use ## and ### for sections, short paragraphs, occasional bullet lists, and at most one > blockquote pull-quote. Do NOT include the title or subtitle in the body. Do NOT add a sign-off/unsubscribe (the template adds the footer). Aim for 250-500 words unless the prompt asks otherwise.`;
+- "body_md": the mail body in Markdown. Use ## and ### for sections, short paragraphs, occasional bullet lists, and at most one > blockquote pull-quote. Do NOT include the title or subtitle in the body. Do NOT add a sign-off/unsubscribe (the template adds the footer). Aim for 250-500 words unless the prompt asks otherwise.`;
 
 export async function generateDraft(env: Record<string, string>, input: GenInput): Promise<GenDraft> {
   const apiKey = env.OPENROUTER_API_KEY;
@@ -208,7 +208,7 @@ export interface FieldInput {
   context: { title: string; subtitle: string; eyebrow: string; body_md: string };
 }
 
-/** Regenerate a single field, given the rest of the issue as context. */
+/** Regenerate a single field, given the rest of the mail as context. */
 export async function generateField(env: Record<string, string>, input: FieldInput): Promise<string> {
   const apiKey = env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("AI generation unavailable: OPENROUTER_API_KEY is not set.");

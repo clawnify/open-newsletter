@@ -5,7 +5,7 @@ import { api } from "../api";
 import { baseDesign, effectiveDesign } from "../lib/design";
 import { diffTokens, withDefaults, type DesignTokens } from "../../shared/design";
 import { newBlock } from "../../shared/blocks";
-import type { Block, BlockType, Issue } from "../../shared/types";
+import type { Block, BlockType, Mail } from "../../shared/types";
 import { Preview, type EditHandlers } from "./preview";
 import { DesignPanel } from "./design-panel";
 import { SendDialog } from "./send-dialog";
@@ -13,9 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
-export function Editor({ issueId, onBack }: { issueId: number; onBack: () => void }) {
+export function Editor({ mailId, onBack }: { mailId: number; onBack: () => void }) {
   const store = useStore();
-  const [issue, setIssue] = useState<Issue | null>(store.issues.find((i) => i.id === issueId) || null);
+  const [mail, setMail] = useState<Mail | null>(store.mails.find((i) => i.id === mailId) || null);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [selectedId, setSelected] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
@@ -25,63 +25,63 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
   const [showSend, setShowSend] = useState(false);
   const [saved, setSaved] = useState(true);
 
-  // Undo/redo: snapshots of the whole issue. `record` is called before any
+  // Undo/redo: snapshots of the whole mail. `record` is called before any
   // meaningful change (edits, block ops, design, AI). Capped at 50 steps.
-  const [history, setHistory] = useState<Issue[]>([]);
-  const [future, setFuture] = useState<Issue[]>([]);
-  const live = useRef({ issue, history, future });
-  live.current = { issue, history, future };
+  const [history, setHistory] = useState<Mail[]>([]);
+  const [future, setFuture] = useState<Mail[]>([]);
+  const live = useRef({ mail, history, future });
+  live.current = { mail, history, future };
 
   useEffect(() => {
-    if (!issue) api<Issue>("GET", `/api/issues/${issueId}`).then(setIssue).catch((e) => store.setError((e as Error).message));
-  }, [issueId]);
+    if (!mail) api<Mail>("GET", `/api/mails/${mailId}`).then(setMail).catch((e) => store.setError((e as Error).message));
+  }, [mailId]);
 
-  const base = useMemo(() => (issue ? baseDesign(issue, store.templates) : withDefaults(null)), [issue, store.templates]);
-  const design = useMemo<DesignTokens>(() => (issue ? effectiveDesign(issue, store.templates, device) : withDefaults(null)), [issue, store.templates, device]);
+  const base = useMemo(() => (mail ? baseDesign(mail, store.templates) : withDefaults(null)), [mail, store.templates]);
+  const design = useMemo<DesignTokens>(() => (mail ? effectiveDesign(mail, store.templates, device) : withDefaults(null)), [mail, store.templates, device]);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const queueSave = (next: Issue, patch: Partial<Issue>) => {
+  const queueSave = (next: Mail, patch: Partial<Mail>) => {
     setSaved(false);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       try {
-        await store.saveIssue(next.id, patch);
+        await store.saveMail(next.id, patch);
         setSaved(true);
       } catch (e) {
         store.setError((e as Error).message);
       }
     }, 500);
   };
-  /** Snapshot the current issue onto the undo stack and clear redo. */
-  const record = (cur: Issue) => {
+  /** Snapshot the current mail onto the undo stack and clear redo. */
+  const record = (cur: Mail) => {
     setHistory((h) => [...h.slice(-49), cur]);
     setFuture([]);
   };
 
-  const patch = (p: Partial<Issue>) => {
-    if (!issue) return;
-    record(issue);
-    const next = { ...issue, ...p };
-    setIssue(next);
+  const patch = (p: Partial<Mail>) => {
+    if (!mail) return;
+    record(mail);
+    const next = { ...mail, ...p };
+    setMail(next);
     queueSave(next, p);
   };
 
-  const restore = (snap: Issue) => {
-    setIssue(snap);
+  const restore = (snap: Mail) => {
+    setMail(snap);
     queueSave(snap, snap);
   };
   const undo = useCallback(() => {
-    const { issue, history } = live.current;
-    if (!issue || !history.length) return;
+    const { mail, history } = live.current;
+    if (!mail || !history.length) return;
     setHistory((h) => h.slice(0, -1));
-    setFuture((f) => [issue, ...f].slice(0, 50));
+    setFuture((f) => [mail, ...f].slice(0, 50));
     restore(history[history.length - 1]);
   }, []);
   const redo = useCallback(() => {
-    const { issue, future } = live.current;
-    if (!issue || !future.length) return;
+    const { mail, future } = live.current;
+    if (!mail || !future.length) return;
     setFuture((f) => f.slice(1));
-    setHistory((h) => [...h.slice(-49), issue]);
+    setHistory((h) => [...h.slice(-49), mail]);
     restore(future[0]);
   }, []);
 
@@ -99,23 +99,23 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
   }, [undo, redo]);
 
   const setBlocks = (blocks: Block[]) => patch({ blocks });
-  const onBlock = (id: string, p: Record<string, unknown>) => setBlocks((issue!.blocks || []).map((b) => (b.id === id ? ({ ...b, ...p } as Block) : b)));
-  const onReplace = (id: string, block: Block) => setBlocks((issue!.blocks || []).map((b) => (b.id === id ? block : b)));
+  const onBlock = (id: string, p: Record<string, unknown>) => setBlocks((mail!.blocks || []).map((b) => (b.id === id ? ({ ...b, ...p } as Block) : b)));
+  const onReplace = (id: string, block: Block) => setBlocks((mail!.blocks || []).map((b) => (b.id === id ? block : b)));
   const onAdd = (index: number, type: BlockType) => {
-    const blocks = (issue!.blocks || []).slice();
+    const blocks = (mail!.blocks || []).slice();
     const b = newBlock(type);
     blocks.splice(index, 0, b);
     setBlocks(blocks);
     setSelected(b.id);
   };
   const onMove = (index: number, dir: -1 | 1) => {
-    const blocks = (issue!.blocks || []).slice();
+    const blocks = (mail!.blocks || []).slice();
     const j = index + dir;
     if (j < 0 || j >= blocks.length) return;
     [blocks[index], blocks[j]] = [blocks[j], blocks[index]];
     setBlocks(blocks);
   };
-  const onDelete = (index: number) => setBlocks((issue!.blocks || []).filter((_, i) => i !== index));
+  const onDelete = (index: number) => setBlocks((mail!.blocks || []).filter((_, i) => i !== index));
 
   const patchDesign = (edited: DesignTokens) => {
     if (device === "mobile") patch({ design_mobile: diffTokens(base, edited) });
@@ -141,20 +141,20 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
   };
 
   const generate = async () => {
-    if (!issue || !prompt.trim()) return;
+    if (!mail || !prompt.trim()) return;
     setGenerating(true);
-    const before = issue;
+    const before = mail;
     try {
-      let updated: Issue;
+      let updated: Mail;
       if (selectMode && aiSelected.size > 0) {
-        updated = await api<Issue>("POST", `/api/issues/${issue.id}/blocks/rewrite-batch`, { ids: [...aiSelected], prompt: prompt.trim() });
+        updated = await api<Mail>("POST", `/api/mails/${mail.id}/blocks/rewrite-batch`, { ids: [...aiSelected], prompt: prompt.trim() });
         exitSelect();
       } else {
-        updated = await api<Issue>("POST", `/api/issues/${issue.id}/generate`, { prompt: prompt.trim(), target: "all" });
+        updated = await api<Mail>("POST", `/api/mails/${mail.id}/generate`, { prompt: prompt.trim(), target: "all" });
       }
       record(before); // make the generation undoable
-      setIssue(updated);
-      await store.refreshIssues();
+      setMail(updated);
+      await store.refreshMails();
       setPrompt("");
     } catch (e) {
       store.setError((e as Error).message);
@@ -164,25 +164,25 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
   };
 
   const saveAsTemplate = async () => {
-    if (!issue) return;
-    const name = window.prompt("Template name", issue.title?.slice(0, 40) || "My template");
+    if (!mail) return;
+    const name = window.prompt("Template name", mail.title?.slice(0, 40) || "My template");
     if (!name) return;
     try {
-      await api("POST", "/api/templates", { name, from_issue_id: issue.id });
+      await api("POST", "/api/templates", { name, from_mail_id: mail.id });
       await store.refreshTemplates();
     } catch (e) {
       store.setError((e as Error).message);
     }
   };
 
-  if (!issue) return <div className="flex h-full items-center justify-center text-muted-foreground">Loading…</div>;
+  if (!mail) return <div className="flex h-full items-center justify-center text-muted-foreground">Loading…</div>;
 
   const edit: EditHandlers = {
-    onIssue: patch, onBlock, onReplace, onAdd, onMove, onDelete,
+    onMail: patch, onBlock, onReplace, onAdd, onMove, onDelete,
     onBlockAI: (b) => enterSelect(b.id),
     selectedId, setSelected, selectMode, aiSelected, toggleAI,
   };
-  const sent = issue.status !== "draft";
+  const sent = mail.status !== "draft";
 
   return (
     <div className="flex h-full min-w-0 flex-col" onClick={() => !selectMode && setSelected(null)}>
@@ -190,9 +190,9 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
         <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back"><ArrowLeft size={18} /></Button>
         <div className="flex items-center gap-2 text-sm">
           <Badge variant="secondary">Mail</Badge>
-          <span className="max-w-[260px] truncate font-medium">{issue.title || "Untitled"}</span>
+          <span className="max-w-[260px] truncate font-medium">{mail.title || "Untitled"}</span>
           <span className="text-xs text-muted-foreground">{saved ? "Saved" : "Saving…"}</span>
-          {sent ? <Badge className="bg-green-100 capitalize text-green-700">{issue.status}</Badge> : null}
+          {sent ? <Badge className="bg-green-100 capitalize text-green-700">{mail.status}</Badge> : null}
         </div>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center">
@@ -214,7 +214,7 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
           {device === "mobile" ? (
             <div className="flex items-center justify-center gap-2 border-b border-amber-200 bg-amber-50 py-1.5 text-xs text-amber-700">
               <Smartphone size={13} /> Editing <strong>mobile overrides</strong> — changes here only affect phones.
-              {issue.design_mobile && Object.keys(issue.design_mobile).length ? (
+              {mail.design_mobile && Object.keys(mail.design_mobile).length ? (
                 <button className="ml-1 inline-flex items-center gap-1 rounded border border-amber-300 px-1.5 py-0.5 hover:bg-amber-100" onClick={resetMobile}><RotateCcw size={11} /> reset</button>
               ) : null}
             </div>
@@ -227,7 +227,7 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
 
           <div className="flex-1 overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto transition-all" style={{ maxWidth: device === "mobile" ? 390 : design.layout.contentWidth + 80 }}>
-              <Preview issue={issue} design={design} settings={store.settings!} edit={edit} />
+              <Preview mail={mail} design={design} settings={store.settings!} edit={edit} />
             </div>
           </div>
 
@@ -269,7 +269,7 @@ export function Editor({ issueId, onBack }: { issueId: number; onBack: () => voi
         </aside>
       </div>
 
-      {showSend ? <SendDialog issue={issue} onClose={() => setShowSend(false)} onSent={(i) => { setIssue(i); setShowSend(false); store.refreshIssues(); }} /> : null}
+      {showSend ? <SendDialog mail={mail} onClose={() => setShowSend(false)} onSent={(i) => { setMail(i); setShowSend(false); store.refreshMails(); }} /> : null}
     </div>
   );
 }

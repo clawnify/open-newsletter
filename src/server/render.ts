@@ -1,5 +1,5 @@
 /**
- * Email renderer — compiles an issue's blocks + DESIGN.md tokens into
+ * Email renderer — compiles an mail's blocks + DESIGN.md tokens into
  * email-safe HTML. Newsletters are a single vertical column of blocks
  * inside a centered card; each block is one table row. Every style is
  * inlined (Gmail strips <head> CSS); a small <style> block carries only
@@ -11,7 +11,7 @@
 import { markdownToHtml } from "../shared/markdown";
 import { fontStack, applyMobile, type DesignTokens } from "../shared/design";
 import { readableTextOn } from "../shared/contrast";
-import type { Block, Issue, Settings, TextColor } from "../shared/types";
+import type { Block, Mail, Settings, TextColor } from "../shared/types";
 
 export interface RenderOpts {
   forEmail?: boolean;
@@ -99,7 +99,7 @@ function renderBlock(b: Block, d: DesignTokens): string {
   }
 }
 
-export function renderInner(issue: Issue, d: DesignTokens, settings: Settings, opts: RenderOpts = {}): string {
+export function renderInner(mail: Mail, d: DesignTokens, settings: Settings, opts: RenderOpts = {}): string {
   const rows: string[] = [];
   const space = d.layout.spacing;
   const body = fontStack(d.typography.bodyFont);
@@ -108,7 +108,7 @@ export function renderInner(issue: Issue, d: DesignTokens, settings: Settings, o
   if (d.options.showHeader && logo) {
     rows.push(`<tr><td style="padding:0 0 ${space}px;"><img src="${esc(logo)}" alt="${esc(settings.publication_name)}" height="28" style="height:28px;width:auto;display:block;border:0;"></td></tr>`);
   }
-  for (const b of issue.blocks || []) rows.push(`<tr><td style="padding:${space}px 0 0;">${renderBlock(b, d)}</td></tr>`);
+  for (const b of mail.blocks || []) rows.push(`<tr><td style="padding:${space}px 0 0;">${renderBlock(b, d)}</td></tr>`);
 
   if (d.options.showFooter) {
     const unsub = opts.forEmail ? `{{{RESEND_UNSUBSCRIBE_URL}}}` : "#";
@@ -134,8 +134,8 @@ function mobileStyle(desktop: DesignTokens, mobile?: Partial<DesignTokens> | nul
   return `@media only screen and (max-width:600px){${rules.join("")}}`;
 }
 
-export function renderEmailHtml(issue: Issue, d: DesignTokens, settings: Settings, opts: RenderOpts = {}): string {
-  const inner = renderInner(issue, d, settings, { ...opts, forEmail: true });
+export function renderEmailHtml(mail: Mail, d: DesignTokens, settings: Settings, opts: RenderOpts = {}): string {
+  const inner = renderInner(mail, d, settings, { ...opts, forEmail: true });
   const pad = d.layout.cardRadius > 0 ? 32 : 0;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -143,7 +143,7 @@ export function renderEmailHtml(issue: Issue, d: DesignTokens, settings: Setting
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light">
-<title>${esc(issue.title)}</title>
+<title>${esc(mail.title)}</title>
 <style>${mobileStyle(d, opts.mobile)}</style>
 </head>
 <body style="margin:0;padding:0;background:${d.colors.page};">

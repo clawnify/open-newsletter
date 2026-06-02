@@ -63,7 +63,7 @@ export function markdownToHtml(md: string): string {
       continue;
     }
 
-    // Headings (h2/h3 only — the issue title is a structured field)
+    // Headings (h2/h3 only — the mail title is a structured field)
     const h = trimmed.match(/^(#{2,3})\s+(.*)$/);
     if (h) {
       closeList();

@@ -1,19 +1,19 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useStore } from "../store";
-import type { Issue } from "../../shared/types";
+import type { Mail } from "../../shared/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export function IssuesView({ openIssue }: { openIssue: (id: number) => void }) {
-  const { issues, templates, createIssue, deleteIssue, setError } = useStore();
+export function MailsView({ openMail }: { openMail: (id: number) => void }) {
+  const { mails, templates, createMail, deleteMail, setError } = useStore();
   const [picking, setPicking] = useState(false);
 
   const start = async (slug?: string) => {
     try {
-      const issue = await createIssue(slug);
+      const mail = await createMail(slug);
       setPicking(false);
-      openIssue(issue.id);
+      openMail(mail.id);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -31,15 +31,15 @@ export function IssuesView({ openIssue }: { openIssue: (id: number) => void }) {
         </Button>
       </header>
 
-      {issues.length === 0 ? (
+      {mails.length === 0 ? (
         <div className="rounded-2xl border border-dashed p-12 text-center">
           <p className="text-muted-foreground">No mail yet.</p>
           <Button className="mt-3" onClick={() => setPicking(true)}>Create your first newsletter</Button>
         </div>
       ) : (
         <ul className="divide-y overflow-hidden rounded-2xl border bg-background">
-          {issues.map((i) => (
-            <IssueRow key={i.id} issue={i} onOpen={() => openIssue(i.id)} onDelete={() => deleteIssue(i.id)} />
+          {mails.map((i) => (
+            <MailRow key={i.id} mail={i} onOpen={() => openMail(i.id)} onDelete={() => deleteMail(i.id)} />
           ))}
         </ul>
       )}
@@ -67,20 +67,20 @@ export function IssuesView({ openIssue }: { openIssue: (id: number) => void }) {
   );
 }
 
-function IssueRow({ issue, onOpen, onDelete }: { issue: Issue; onOpen: () => void; onDelete: () => void }) {
+function MailRow({ mail, onOpen, onDelete }: { mail: Mail; onOpen: () => void; onDelete: () => void }) {
   const badge =
-    issue.status === "sent"
+    mail.status === "sent"
       ? "bg-green-100 text-green-700"
-      : issue.status === "scheduled"
+      : mail.status === "scheduled"
         ? "bg-amber-100 text-amber-700"
         : "bg-muted text-muted-foreground";
   return (
     <li className="flex items-center gap-3 px-4 py-3 hover:bg-muted">
       <button className="min-w-0 flex-1 text-left" onClick={onOpen}>
-        <div className="truncate font-medium">{issue.title || "Untitled"}</div>
-        <div className="truncate text-xs text-muted-foreground">{issue.subtitle || issue.eyebrow}</div>
+        <div className="truncate font-medium">{mail.title || "Untitled"}</div>
+        <div className="truncate text-xs text-muted-foreground">{mail.subtitle || mail.eyebrow}</div>
       </button>
-      <span className={`rounded-md px-2 py-0.5 text-xs font-medium capitalize ${badge}`}>{issue.status}</span>
+      <span className={`rounded-md px-2 py-0.5 text-xs font-medium capitalize ${badge}`}>{mail.status}</span>
       <button className="rounded-lg p-2 text-muted-foreground hover:bg-background hover:text-destructive" onClick={onDelete} aria-label="Delete">
         <Trash2 size={16} />
       </button>

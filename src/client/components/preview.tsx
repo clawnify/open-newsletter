@@ -7,14 +7,14 @@ import { markdownToHtml } from "../../shared/markdown";
 import { designVars, fontStack, type DesignTokens } from "../../shared/design";
 import { TEXT_PRESETS, currentPreset, applyPreset, type TextPreset } from "../../shared/blocks";
 import { readableTextOn } from "../../shared/contrast";
-import type { Block, BlockType, Issue, Settings, TextColor } from "../../shared/types";
+import type { Block, BlockType, Mail, Settings, TextColor } from "../../shared/types";
 import { Editable } from "./editable";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export interface EditHandlers {
-  onIssue: (patch: Partial<Issue>) => void;
+  onMail: (patch: Partial<Mail>) => void;
   onBlock: (id: string, patch: Record<string, unknown>) => void;
   onReplace: (id: string, block: Block) => void;
   onAdd: (index: number, type: BlockType) => void;
@@ -62,7 +62,7 @@ function textStyle(b: Extract<Block, { type: "text" }>, d: DesignTokens): CSSPro
   };
 }
 
-export function Preview({ issue, design, settings, edit }: { issue: Issue; design: DesignTokens; settings: Settings; edit?: EditHandlers }) {
+export function Preview({ mail, design, settings, edit }: { mail: Mail; design: DesignTokens; settings: Settings; edit?: EditHandlers }) {
   const vars = designVars(design) as CSSProperties;
   const cardPad = design.layout.cardRadius > 0 ? 32 : 28;
 
@@ -71,12 +71,12 @@ export function Preview({ issue, design, settings, edit }: { issue: Issue; desig
       <div className="nl-card" style={{ background: design.colors.background, borderRadius: design.layout.cardRadius, padding: cardPad, maxWidth: design.layout.contentWidth, margin: "0 auto" }}>
         {design.options.showHeader && settings.logo ? <img src={settings.logo} alt="" style={{ height: 28, marginBottom: 20 }} /> : null}
 
-        {(issue.blocks || []).map((b, i) => (
-          <BlockWrap key={b.id} edit={edit} block={b} index={i} count={issue.blocks.length} design={design}>
+        {(mail.blocks || []).map((b, i) => (
+          <BlockWrap key={b.id} edit={edit} block={b} index={i} count={mail.blocks.length} design={design}>
             <BlockView block={b} design={design} edit={edit} />
           </BlockWrap>
         ))}
-        {edit && !edit.selectMode ? <AddBar onAdd={(t) => edit.onAdd(issue.blocks.length, t)} /> : null}
+        {edit && !edit.selectMode ? <AddBar onAdd={(t) => edit.onAdd(mail.blocks.length, t)} /> : null}
 
         {design.options.showFooter ? (
           <div style={{ marginTop: design.layout.spacing * 1.5, borderTop: `1px solid ${design.colors.border}`, paddingTop: design.layout.spacing, fontFamily: fontStack(design.typography.bodyFont), fontSize: 12, lineHeight: 1.5, color: design.colors.secondary }}>
