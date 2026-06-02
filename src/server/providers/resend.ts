@@ -53,6 +53,11 @@ export class ResendProvider implements EmailProvider {
     return (data.data || []).map((a) => ({ id: a.id, name: a.name }));
   }
 
+  async listDomains(): Promise<{ name: string; status: string }[]> {
+    const data = await this.req<{ data?: Array<{ name: string; status: string }> }>("GET", "/domains");
+    return (data.data || []).map((d) => ({ name: d.name, status: d.status }));
+  }
+
   async listContacts(audienceId: string): Promise<ResendContact[]> {
     const data = await this.req<{ data?: any[] }>(
       "GET",

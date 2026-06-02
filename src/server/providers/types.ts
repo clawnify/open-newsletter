@@ -35,6 +35,8 @@ export interface EmailProvider {
 
   // ── Audience / contacts ──
   listAudiences(): Promise<ResendAudience[]>;
+  /** Verified sending domains on the provider account (status: "verified", …). */
+  listDomains(): Promise<{ name: string; status: string }[]>;
   listContacts(audienceId: string): Promise<ResendContact[]>;
   addContact(audienceId: string, contact: NewContact): Promise<ResendContact>;
   removeContact(audienceId: string, contactId: string): Promise<void>;

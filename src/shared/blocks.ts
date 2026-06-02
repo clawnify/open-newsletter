@@ -151,6 +151,14 @@ export function markdownToBlocks(md: string): Block[] {
       continue;
     }
 
+    // A link alone on its own line is a call-to-action button.
+    const btn = t.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
+    if (btn) {
+      blocks.push({ id: blockId(), type: "button", text: btn[1], href: btn[2], align: "left" });
+      i++;
+      continue;
+    }
+
     if (/^>\s?/.test(t)) {
       const buf: string[] = [];
       while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
@@ -181,7 +189,7 @@ export function markdownToBlocks(md: string): Block[] {
     while (
       i < lines.length &&
       lines[i].trim() !== "" &&
-      !/^(#{1,3}\s|>\s?|[-*+]\s|\d+\.\s|!\[|(-{3,}|\*{3,}|_{3,})$)/.test(lines[i].trim())
+      !/^(#{1,3}\s|>\s?|[-*+]\s|\d+\.\s|!\[|\[[^\]]+\]\([^)\s]+\)$|(-{3,}|\*{3,}|_{3,})$)/.test(lines[i].trim())
     ) {
       buf.push(lines[i].trim());
       i++;
