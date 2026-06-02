@@ -136,6 +136,17 @@ DESIGN.md            — the default brand (Classic Editorial), Google Labs form
 templates/<slug>/    — each template as DESIGN.md + content.md
 ```
 
+## Roadmap
+
+- **HTML-to-image components** — author rich illustrations, diagrams, and
+  "component" graphics in HTML + CSS and render them to static images at send
+  time, so custom visuals stay email-safe (email clients don't run JS or modern
+  CSS). Makes branded illustrations and charts a drop-in block.
+- **AI sources** — ground a draft in real data instead of just a prompt. Connect
+  a source and the generator pulls from it. First up: **GitHub commits** →
+  generate a "what we shipped this week" issue straight from your repo history.
+  Planned: changelogs, product analytics, RSS/Atom, Linear/Jira.
+
 ## License
 
 MIT

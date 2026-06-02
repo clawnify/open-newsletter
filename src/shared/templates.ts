@@ -220,4 +220,112 @@ One sentence on the big thing. Make it concrete and benefit-led.`,
       ),
     },
   },
+  {
+    slug: "product-bulletin",
+    name: "Product Bulletin",
+    description: "Bright and scannable — a bold heading, emoji-bulleted highlights, and one CTA. For changelogs and product updates.",
+    design: {
+      colors: {
+        page: "#F4F6FB",
+        background: "#FFFFFF",
+        foreground: "#0B1220",
+        primary: "#2563EB",
+        onPrimary: "#FFFFFF",
+        secondary: "#6B7280",
+        link: "#2563EB",
+        border: "#E6E9F2",
+      },
+      typography: { headingFont: "inter", bodyFont: "inter", baseSize: 15, titleSize: 32, lineHeight: 1.6, headingWeight: 700 },
+      layout: { contentWidth: 600, spacing: 18, imageRadius: 12, buttonRadius: 8, cardRadius: 16, outerPadding: 24 },
+      options: { showHeader: true, showFooter: true, autoButtonText: true },
+    },
+    skeleton: {
+      eyebrow: "PRODUCT UPDATE",
+      title: "Recent updates: the highlights",
+      subtitle: "",
+      byline_name: "",
+      byline_date: "",
+      feature_image: "",
+      blocks: body(
+        `Since the last update we've kept shipping — here's what's new and why it matters.
+
+- 🆕 **New integrations** — BigQuery, Cal.com, Confluence, Postgres, and more.
+- 🧠 **Smarter agents** — more reliable, robust, and self-aware.
+- 🎨 **Custom icons** — pick a classic variant or your favorite emoji.
+- 💸 **Credit alerts** — get notified before you run out.`,
+        [{ id: blockId(), type: "button", text: "See the changelog", href: "https://example.com", align: "left" }],
+      ),
+    },
+  },
+  {
+    slug: "announcement",
+    name: "Announcement",
+    description: "Loud and celebratory — a bright accent, big headline, and a single call to action. For launches and big news.",
+    design: {
+      colors: {
+        page: "#FDF2F8",
+        background: "#FFFFFF",
+        foreground: "#111827",
+        primary: "#EC4899",
+        onPrimary: "#FFFFFF",
+        secondary: "#6B7280",
+        link: "#DB2777",
+        border: "#F6E4EE",
+      },
+      typography: { headingFont: "inter", bodyFont: "inter", baseSize: 16, titleSize: 34, lineHeight: 1.55, headingWeight: 700 },
+      layout: { contentWidth: 600, spacing: 20, imageRadius: 14, buttonRadius: 10, cardRadius: 18, outerPadding: 24 },
+      options: { showHeader: true, showFooter: true, autoButtonText: true },
+    },
+    skeleton: {
+      eyebrow: "NEW",
+      title: "Introducing Community Templates",
+      subtitle: "Curated, high-quality starting points — built by the team and the community.",
+      byline_name: "",
+      byline_date: "",
+      feature_image: "",
+      blocks: body(
+        `Explore a curated collection of high-quality templates — both flows and agents — built by our team and community members. Get inspired, learn best practices, and set up new workflows fast.`,
+        [{ id: blockId(), type: "button", text: "Check out templates", href: "https://example.com", align: "left" }],
+      ),
+    },
+  },
+  {
+    slug: "partnership",
+    name: "Partnership",
+    description: "Minimal, black-on-white, co-branded. A title like “Acme × Partner”, link lists, and a clean second section. For collabs and integrations.",
+    design: {
+      colors: {
+        page: "#FFFFFF",
+        background: "#FFFFFF",
+        foreground: "#0A0A0A",
+        primary: "#0A0A0A",
+        onPrimary: "#FFFFFF",
+        secondary: "#6B7280",
+        link: "#0A0A0A",
+        border: "#E5E7EB",
+      },
+      typography: { headingFont: "inter", bodyFont: "inter", baseSize: 16, titleSize: 30, lineHeight: 1.6, headingWeight: 700 },
+      layout: { contentWidth: 600, spacing: 22, imageRadius: 8, buttonRadius: 8, cardRadius: 0, outerPadding: 16 },
+      options: { showHeader: true, showFooter: true, autoButtonText: true },
+    },
+    skeleton: {
+      eyebrow: "",
+      title: "Acme × Partner",
+      subtitle: "How two teams are better together.",
+      byline_name: "",
+      byline_date: "",
+      feature_image: "",
+      blocks: body(
+        `The team at **Partner** uses Acme to automatically enrich CRM data and generate personalized outreach for enterprise prospects. We just shipped a Partner integration — here's what you can build with it:
+
+- [Enrich leads and route to sales with AI research](https://example.com)
+- [Research any company or person for personalized outreach](https://example.com)
+- [Competitive SEO analyzer](https://example.com)
+
+## New learning resources
+
+Two new courses and a refreshed curriculum, plus certifications to show your expertise.`,
+      ),
+    },
+  },
 ];
