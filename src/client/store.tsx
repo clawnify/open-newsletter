@@ -63,20 +63,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (booted.current) return;
     booted.current = true;
     (async () => {
-      try {
-        const [st, se, te, is] = await Promise.all([
-          api<StatusInfo>("GET", "/api/status"),
-          api<Settings>("GET", "/api/settings"),
-          api<Template[]>("GET", "/api/templates"),
-          api<Issue[]>("GET", "/api/issues"),
-        ]);
-        setStatus(st);
-        setSettings(se);
-        setTemplates(te);
-        setIssues(is);
-      } catch (e) {
-        setError((e as Error).message);
-      }
+      // Load each section independently so one failing endpoint degrades
+      // gracefully (shows its real error) instead of blanking the whole app.
+      const results = await Promise.allSettled([
+        api<StatusInfo>("GET", "/api/status").then(setStatus),
+        api<Settings>("GET", "/api/settings").then(setSettings),
+        api<Template[]>("GET", "/api/templates").then(setTemplates),
+        api<Issue[]>("GET", "/api/issues").then(setIssues),
+      ]);
+      const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+      if (failed) setError((failed.reason as Error).message);
       setLoading(false);
     })();
   }, []);
