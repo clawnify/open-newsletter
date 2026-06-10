@@ -32,15 +32,15 @@ sending pipeline, fully yours. No per-subscriber pricing, no lock-in.
 
 ## How it works
 
-```
-Prompt ──▶ AI draft (OpenRouter) ──▶ Mail (D1)
-                                       │
-            DESIGN.md tokens ──────────┤
-                                       ▼
-                    renderer ──▶ email-safe HTML
-                                       │
-                                       ▼
-                Resend broadcast ──▶ your audience
+```mermaid
+flowchart TD
+    prompt(["Prompt"]) --> draft["AI draft · OpenRouter"]
+    draft --> mail[("Mail · D1")]
+    mail --> renderer["renderer"]
+    tokens["DESIGN.md tokens"] --> renderer
+    renderer --> html["email-safe HTML"]
+    html --> broadcast["Resend broadcast"]
+    broadcast --> audience(["your audience"])
 ```
 
 A **template** = a `DESIGN.md` token set + a content skeleton. Each mail can
